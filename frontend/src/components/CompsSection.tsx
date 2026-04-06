@@ -5,6 +5,8 @@ interface Props {
   loading: boolean
   error: string | null
   hasCoordinates: boolean
+  noCoordinatesMessage?: string
+  emptyMessage?: string
 }
 
 const currency = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
@@ -14,9 +16,9 @@ function money(v: number | null): string {
   return currency.format(v)
 }
 
-export function CompsSection({ comps, loading, error, hasCoordinates }: Props): JSX.Element {
+export function CompsSection({ comps, loading, error, hasCoordinates, noCoordinatesMessage, emptyMessage }: Props): JSX.Element {
   if (!hasCoordinates) {
-    return <section className="panel"><h2>Sales comps</h2><p>Provide lat/lon to fetch comps.</p></section>
+    return <section className="panel"><h2>Sales comps</h2><p>{noCoordinatesMessage ?? 'Provide lat/lon to fetch comps.'}</p></section>
   }
 
   if (loading) {
@@ -28,7 +30,7 @@ export function CompsSection({ comps, loading, error, hasCoordinates }: Props): 
   }
 
   if (!comps) {
-    return <section className="panel"><h2>Sales comps</h2><p>Run analysis to load comps.</p></section>
+    return <section className="panel"><h2>Sales comps</h2><p>{emptyMessage ?? 'Run analysis to load comps.'}</p></section>
   }
 
   return (

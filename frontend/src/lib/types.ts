@@ -130,3 +130,31 @@ export interface MemoResponse {
   next_checks: string[]
   disclaimer: string
 }
+
+export interface SnapshotSummary {
+  id: string
+  created_at: string
+  updated_at: string
+  title: string
+  address_label: string | null
+  app_version: string
+  engine_version: string
+  has_comps: boolean
+  has_memo: boolean
+  investment_view: MemoResponse['investment_view'] | null
+}
+
+export interface SnapshotResponse extends SnapshotSummary {
+  request: AnalysisRequest
+  analysis: AnalysisResponse
+  comps: CompsResponse | null
+  memo: MemoResponse | null
+}
+
+export interface SnapshotSaveRequest {
+  request: AnalysisRequest
+  analysis?: AnalysisResponse
+  comps?: CompsResponse | null
+  memo?: MemoResponse | null
+  title?: string | null
+}

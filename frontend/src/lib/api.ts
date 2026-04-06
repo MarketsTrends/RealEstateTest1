@@ -1,4 +1,13 @@
-import type { AnalysisRequest, AnalysisResponse, ApiError, CompsResponse, MemoResponse } from './types'
+import type {
+  AnalysisRequest,
+  AnalysisResponse,
+  ApiError,
+  CompsResponse,
+  MemoResponse,
+  SnapshotResponse,
+  SnapshotSaveRequest,
+  SnapshotSummary
+} from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -94,4 +103,37 @@ export async function postMemo(payload: AnalysisRequest): Promise<MemoResponse> 
   }
 
   return (await response.json()) as MemoResponse
+}
+
+export async function saveAnalysisSnapshot(payload: SnapshotSaveRequest): Promise<SnapshotSummary> {
+  const response = await fetch(`${API_BASE_URL}/analysis/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as ApiError
+    throw parseApiError(errorBody, response.status)
+  }
+
+  return (await response.json()) as SnapshotSummary
+}
+
+export async function getAnalysisSnapshot(snapshotId: string): Promise<SnapshotResponse> {
+  const response = await fetch(`${API_BASE_URL}/analysis/${encodeURIComponent(snapshotId)}`)
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as ApiError
+    throw parseApiError(errorBody, response.status)
+  }
+  return (await response.json()) as SnapshotResponse
+}
+
+export async function getRecentAnalyses(limit = 20): Promise<SnapshotSummary[]> {
+  const response = await fetch(`${API_BASE_URL}/analyses?limit=${limit}`)
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as ApiError
+    throw parseApiError(errorBody, response.status)
+  }
+  return (await response.json()) as SnapshotSummary[]
 }

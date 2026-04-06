@@ -1,11 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { CompsSection } from './components/CompsSection'
 import { DealForm } from './components/DealForm'
 import { MemoSection } from './components/MemoSection'
 import { ResultsView } from './components/ResultsView'
-import { downloadPdfReport, getCompsSales, postAnalysis, postMemo } from './lib/api'
-import type { AnalysisRequest, AnalysisResponse, CompsResponse, MemoResponse } from './lib/types'
+import {
+  downloadPdfReport,
+  getAnalysisSnapshot,
+  getCompsSales,
+  getRecentAnalyses,
+  postAnalysis,
+  postMemo,
+  saveAnalysisSnapshot
+} from './lib/api'
+import type { AnalysisRequest, AnalysisResponse, CompsResponse, MemoResponse, SnapshotResponse, SnapshotSummary } from './lib/types'
 
 const sampleDeal: AnalysisRequest = {
   property: {
@@ -50,7 +58,22 @@ const sampleDeal: AnalysisRequest = {
   }
 }
 
+function parseSnapshotIdFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/analysis\/([^/]+)$/)
+  return match ? decodeURIComponent(match[1]) : null
+}
+
 export default function App(): JSX.Element {
+  const snapshotIdFromPath = parseSnapshotIdFromPath(window.location.pathname)
+
+  if (snapshotIdFromPath) {
+    return <SavedSnapshotPage snapshotId={snapshotIdFromPath} />
+  }
+
+  return <LiveAnalysisPage />
+}
+
+function LiveAnalysisPage(): JSX.Element {
   const [form, setForm] = useState<AnalysisRequest>(sampleDeal)
   const [result, setResult] = useState<AnalysisResponse | null>(null)
   const [comps, setComps] = useState<CompsResponse | null>(null)
@@ -59,9 +82,13 @@ export default function App(): JSX.Element {
   const [compsLoading, setCompsLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [memoLoading, setMemoLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [compsError, setCompsError] = useState<string | null>(null)
   const [memoError, setMemoError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [savedSnapshot, setSavedSnapshot] = useState<SnapshotSummary | null>(null)
+  const [recentSnapshots, setRecentSnapshots] = useState<SnapshotSummary[]>([])
 
   const assumptions = useMemo(
     () => [
@@ -71,11 +98,28 @@ export default function App(): JSX.Element {
     []
   )
 
+  const refreshRecent = async (): Promise<void> => {
+    try {
+      const data = await getRecentAnalyses(10)
+      setRecentSnapshots(data)
+    } catch {
+      setRecentSnapshots([])
+    }
+  }
+
+  useEffect(() => {
+    void refreshRecent()
+  }, [])
+
   const submit = async (): Promise<void> => {
     try {
       setLoading(true)
       setError(null)
       setCompsError(null)
+      setMemoError(null)
+      setMemo(null)
+      setSavedSnapshot(null)
+      setSaveError(null)
 
       const data = await postAnalysis(form)
       setResult(data)
@@ -136,6 +180,29 @@ export default function App(): JSX.Element {
     }
   }
 
+  const saveSnapshot = async (): Promise<void> => {
+    try {
+      setSaving(true)
+      setSaveError(null)
+      const data = await saveAnalysisSnapshot({
+        request: form,
+        analysis: result ?? undefined,
+        comps,
+        memo
+      })
+      setSavedSnapshot(data)
+      await refreshRecent()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setSaveError(message)
+      setSavedSnapshot(null)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const shareLink = savedSnapshot ? `${window.location.origin}/analysis/${savedSnapshot.id}` : null
+
   return (
     <main className="container">
       <h1>Deal Analysis</h1>
@@ -148,7 +215,29 @@ export default function App(): JSX.Element {
         <button type="button" onClick={generateMemo} disabled={memoLoading}>
           {memoLoading ? 'Generating memo…' : 'Generate memo'}
         </button>
+        <button type="button" onClick={saveSnapshot} disabled={saving || loading}>
+          {saving ? 'Saving…' : 'Save analysis'}
+        </button>
       </div>
+
+      {shareLink && (
+        <section className="panel">
+          <h2>Snapshot saved</h2>
+          <p>Share link:</p>
+          <p><a href={shareLink}>{shareLink}</a></p>
+          <button
+            type="button"
+            onClick={() => {
+              if (navigator.clipboard) {
+                void navigator.clipboard.writeText(shareLink)
+              }
+            }}
+          >
+            Copy share link
+          </button>
+        </section>
+      )}
+      {saveError && <div className="error">{saveError}</div>}
 
       <div className="layout">
         <DealForm form={form} onChange={setForm} onSubmit={submit} loading={loading} onLoadSample={() => setForm(sampleDeal)} />
@@ -166,12 +255,81 @@ export default function App(): JSX.Element {
 
       {error && <div className="error">{error}</div>}
 
+      <section className="panel">
+        <h2>Recent analyses</h2>
+        {recentSnapshots.length === 0 ? (
+          <p>No saved analyses yet.</p>
+        ) : (
+          <ul>
+            {recentSnapshots.map((item) => (
+              <li key={item.id}>
+                <a href={`/analysis/${item.id}`}>{item.title}</a> · {new Date(item.created_at).toLocaleString()} {item.investment_view ? `· ${item.investment_view}` : ''}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <section className="assumptions">
         <h3>Assumptions</h3>
         <ul>
           {assumptions.map((item) => <li key={item}>{item}</li>)}
         </ul>
       </section>
+    </main>
+  )
+}
+
+function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element {
+  const [snapshot, setSnapshot] = useState<SnapshotResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const load = async (): Promise<void> => {
+      try {
+        setLoading(true)
+        const data = await getAnalysisSnapshot(snapshotId)
+        setSnapshot(data)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown error'
+        setError(message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    void load()
+  }, [snapshotId])
+
+  if (loading) {
+    return <main className="container"><p>Loading saved analysis…</p></main>
+  }
+
+  if (error) {
+    return <main className="container"><div className="error">{error}</div></main>
+  }
+
+  if (!snapshot) {
+    return <main className="container"><div className="error">Snapshot not found.</div></main>
+  }
+
+  return (
+    <main className="container">
+      <p><a href="/">← Back to live analysis</a></p>
+      <h1>{snapshot.title}</h1>
+      <p className="subtitle">Saved snapshot · {new Date(snapshot.created_at).toLocaleString()} · {snapshot.address_label ?? 'No address label'}</p>
+
+      <ResultsView result={snapshot.analysis} />
+      <MemoSection memo={snapshot.memo} loading={false} error={null} emptyMessage="No memo was saved for this snapshot." />
+      <CompsSection
+        comps={snapshot.comps}
+        loading={false}
+        error={null}
+        hasCoordinates={snapshot.request.property.lat !== null && snapshot.request.property.lon !== null}
+        noCoordinatesMessage="No coordinates were provided in the saved request."
+        emptyMessage="No comps were saved for this snapshot."
+      />
     </main>
   )
 }

@@ -4,9 +4,10 @@ interface Props {
   memo: MemoResponse | null
   loading: boolean
   error: string | null
+  emptyMessage?: string
 }
 
-export function MemoSection({ memo, loading, error }: Props): JSX.Element {
+export function MemoSection({ memo, loading, error, emptyMessage }: Props): JSX.Element {
   if (loading) {
     return <section className="panel"><h2>Investment memo</h2><p>Generating memo…</p></section>
   }
@@ -14,7 +15,7 @@ export function MemoSection({ memo, loading, error }: Props): JSX.Element {
     return <section className="panel"><h2>Investment memo</h2><p className="error-inline">{error}</p></section>
   }
   if (!memo) {
-    return <section className="panel"><h2>Investment memo</h2><p>Generate a memo from current deal inputs.</p></section>
+    return <section className="panel"><h2>Investment memo</h2><p>{emptyMessage ?? 'Generate a memo from current deal inputs.'}</p></section>
   }
 
   return (

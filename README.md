@@ -44,6 +44,10 @@ npm install
 - `db/init/001_sales_transactions.sql`: schéma + indexes table comps.
 - `scripts/import_comps.py`: import CSV DVF-like filtré Paris.
 - `frontend/`: application React + Vite TypeScript, section comps simple.
+- `db/init/002_analysis_snapshots.sql`: schéma des snapshots sauvegardés (`JSONB`).
+- `app/api/snapshots.py`: endpoints save/load/list des snapshots.
+- `app/services/snapshot_service.py`: logique snapshot (save/load/list).
+- `app/db/snapshots_repo.py`: accès SQL snapshots.
 
 ## Lancer la base Postgres/PostGIS
 
@@ -124,6 +128,54 @@ Tous les nombres viennent strictement de la sortie déterministe backend.
 
 Si `OPENAI_API_KEY` est absent: `/memo` renvoie `503` avec un message explicite.
 
+## Saved analysis snapshots (milestone persistence)
+
+Objectif produit: transformer l'app en outil réutilisable via snapshots persistés.
+
+- `POST /analysis/save`
+  - input:
+    - `request` (obligatoire, shape `AnalysisRequest`)
+    - `analysis` (optionnel)
+    - `comps` (optionnel ou `null`)
+    - `memo` (optionnel ou `null`)
+    - `title` (optionnel)
+  - comportement:
+    - si `analysis` absent, le backend le calcule au moment du save,
+    - sauvegarde un snapshot **complet** en base (inputs + outputs + hypothèses visibles),
+    - retourne les métadonnées du snapshot (id, dates, title, etc.).
+
+- `GET /analysis/{id}`
+  - retourne le snapshot complet sauvegardé:
+    - metadata,
+    - `request`,
+    - `analysis`,
+    - `comps`,
+    - `memo`.
+  - important: pas de recomputation dynamique au read.
+
+- `GET /analyses?limit=20`
+  - retourne une liste récente légère (métadonnées uniquement), triée du plus récent au plus ancien.
+
+### Stockage snapshots
+
+La table `analysis_snapshots` stocke des payloads `JSONB`:
+
+- `request_payload_json` (non null)
+- `analysis_response_json` (non null)
+- `comps_response_json` (nullable)
+- `memo_response_json` (nullable)
+
+avec un identifiant opaque UUID, timestamps (`created_at`, `updated_at`) et metadata (`title`, `address_label`, `app_version`, `engine_version`).
+
+### Share links
+
+Le frontend expose des liens partageables opaques:
+
+- route: `/analysis/:id`
+- comportement: charge `GET /analysis/{id}` et rend la page à partir du snapshot sauvegardé.
+
+Modèle sécurité MVP: bearer-by-link (pas d'auth, pas de permissions complexes à ce stade).
+
 ## Export PDF
 
 - Endpoint: `POST /report/pdf`
@@ -151,6 +203,7 @@ Si `lat/lon` absents ou DB indisponible, une section placeholder/warning est aff
 - PDF: pas de comps ni visualisations avancées.
 - Memo IA: synthèse explicative uniquement, pas de recalcul, pas de promesse de performance.
 - Comps: pas de couverture nationale, uniquement Paris dans cette étape.
+- Snapshots: pas d'auth/ownership/versionning/collaboration (intentionnellement hors scope MVP).
 
 ## Exécuter les tests
 

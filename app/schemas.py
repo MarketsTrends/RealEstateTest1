@@ -233,6 +233,34 @@ class CompsResponse(BaseModel):
     comps: list[CompRecord]
 
 
+class SnapshotSaveRequest(BaseModel):
+    request: AnalysisRequest
+    analysis: AnalysisResponse | None = None
+    comps: CompsResponse | None = None
+    memo: MemoResponse | None = None
+    title: str | None = None
+
+
+class SnapshotSummary(BaseModel):
+    id: str
+    created_at: datetime
+    updated_at: datetime
+    title: str
+    address_label: str | None
+    app_version: str
+    engine_version: str
+    has_comps: bool
+    has_memo: bool
+    investment_view: InvestmentView | None
+
+
+class SnapshotResponse(SnapshotSummary):
+    request: AnalysisRequest
+    analysis: AnalysisResponse
+    comps: CompsResponse | None
+    memo: MemoResponse | None
+
+
 def round_money(value: float | None) -> float | None:
     if value is None:
         return None
