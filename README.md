@@ -104,6 +104,16 @@ npm run dev
 
 Frontend sur `http://localhost:5173`, API sur `http://localhost:8000`.
 
+## Quick demo flow (first-time users)
+
+1. Ouvrez le frontend et cliquez **Load demo deal**.
+2. Cliquez **Run analysis** pour afficher KPIs, risques et scénarios.
+3. Optionnel:
+   - **Create memo** (nécessite `OPENAI_API_KEY`)
+   - **Download PDF**
+4. Cliquez **Save snapshot** pour générer un lien read-only partageable.
+5. Depuis **Recent analyses**, sélectionnez 2 à 4 snapshots puis **Compare selected deals**.
+
 ## API base URL frontend
 
 ```bash
@@ -188,6 +198,7 @@ Dans l'UI live, toute modification du formulaire invalide l'état dérivé (rés
 - Ouvrez la vue comparaison via `Compare selected`.
 - Route utilisée: `/compare?ids=<id1>,<id2>,<id3>`.
 - La comparaison utilise uniquement les payloads snapshot sauvegardés (pas de recalcul de l'analyse, pas de régénération memo/comps).
+- La vue compare est décision-support (pas de “winner” automatique).
 
 ## Export PDF
 

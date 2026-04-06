@@ -39,9 +39,10 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
   return (
     <section className="panel">
       <div className="panel-header">
-        <h2>Deal Inputs</h2>
-        <button type="button" onClick={onLoadSample}>Sample deal</button>
+        <h2>Deal inputs</h2>
+        <button type="button" onClick={onLoadSample}>Load demo deal</button>
       </div>
+      <p className="muted">Fill key assumptions below. Percentage-like fields use decimals (5% = 0.05).</p>
 
       <div className="grid">
         <label>Property type
@@ -53,7 +54,7 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
         </label>
 
         <label>Address (optional)
-          <input value={form.property.address ?? ''} onChange={(e) => update('property.address', e.target.value)} />
+          <input placeholder="e.g. Paris 11e" value={form.property.address ?? ''} onChange={(e) => update('property.address', e.target.value)} />
         </label>
 
         <label>Surface m² (optional)
@@ -61,11 +62,13 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
         </label>
 
         <label>Latitude (optional)
-          <input type="number" step="0.000001" value={form.property.lat ?? ''} onChange={(e) => update('property.lat', e.target.value)} />
+          <input type="number" step="0.000001" placeholder="48.8592" value={form.property.lat ?? ''} onChange={(e) => update('property.lat', e.target.value)} />
+          <small className="helper-text">Used for comps lookup with longitude.</small>
         </label>
 
         <label>Longitude (optional)
-          <input type="number" step="0.000001" value={form.property.lon ?? ''} onChange={(e) => update('property.lon', e.target.value)} />
+          <input type="number" step="0.000001" placeholder="2.3784" value={form.property.lon ?? ''} onChange={(e) => update('property.lon', e.target.value)} />
+          <small className="helper-text">If missing, comps stay unavailable.</small>
         </label>
 
         <label>DPE class (optional)
@@ -95,6 +98,7 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
 
         <label>Vacancy rate (decimal)
           <input type="number" step="0.001" value={form.income.vacancy_rate} onChange={(e) => update('income.vacancy_rate', e.target.value)} />
+          <small className="helper-text">Example: 0.05 = 5% annual vacancy.</small>
         </label>
 
         <label>Annual operating expenses (€)
@@ -109,8 +113,9 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
           <input type="number" value={form.financing.loan_amount_eur} onChange={(e) => update('financing.loan_amount_eur', e.target.value)} />
         </label>
 
-        <label>Interest annual (decimal)
+        <label>Interest rate annual (decimal)
           <input type="number" step="0.001" value={form.financing.interest_rate_annual} onChange={(e) => update('financing.interest_rate_annual', e.target.value)} />
+          <small className="helper-text">Example: 0.032 = 3.2% annual rate.</small>
         </label>
 
         <label>Term years
@@ -127,6 +132,7 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
 
         <label>Sale cost rate (decimal)
           <input type="number" step="0.001" value={form.exit.sale_cost_rate} onChange={(e) => update('exit.sale_cost_rate', e.target.value)} />
+          <small className="helper-text">Example: 0.06 = 6% transaction costs on exit.</small>
         </label>
       </div>
 

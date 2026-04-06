@@ -18,7 +18,7 @@ function money(v: number | null): string {
 
 export function CompsSection({ comps, loading, error, hasCoordinates, noCoordinatesMessage, emptyMessage }: Props): JSX.Element {
   if (!hasCoordinates) {
-    return <section className="panel"><h2>Sales comps</h2><p>{noCoordinatesMessage ?? 'Provide lat/lon to fetch comps.'}</p></section>
+    return <section className="panel"><h2>Sales comps</h2><p>{noCoordinatesMessage ?? 'Add latitude/longitude to enable comps for this deal.'}</p></section>
   }
 
   if (loading) {
@@ -26,11 +26,11 @@ export function CompsSection({ comps, loading, error, hasCoordinates, noCoordina
   }
 
   if (error) {
-    return <section className="panel"><h2>Sales comps</h2><p className="error-inline">{error}</p></section>
+    return <section className="panel"><h2>Sales comps</h2><p className="error-inline">{error}</p><p className="muted">Comps may be unavailable if the database is not configured.</p></section>
   }
 
   if (!comps) {
-    return <section className="panel"><h2>Sales comps</h2><p>{emptyMessage ?? 'Run analysis to load comps.'}</p></section>
+    return <section className="panel"><h2>Sales comps</h2><p>{emptyMessage ?? 'Run analysis first, then comps are loaded automatically when coordinates are present.'}</p></section>
   }
 
   return (

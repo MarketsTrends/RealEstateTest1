@@ -12,7 +12,10 @@ export function MemoSection({ memo, loading, error, emptyMessage }: Props): JSX.
     return <section className="panel"><h2>Investment memo</h2><p>Generating memo…</p></section>
   }
   if (error) {
-    return <section className="panel"><h2>Investment memo</h2><p className="error-inline">{error}</p></section>
+    const keyHint = error.includes('OPENAI_API_KEY') || error.includes('feature unavailable')
+      ? 'Set OPENAI_API_KEY to enable memo generation.'
+      : null
+    return <section className="panel"><h2>Investment memo</h2><p className="error-inline">{error}</p>{keyHint ? <p className="muted">{keyHint}</p> : null}</section>
   }
   if (!memo) {
     return <section className="panel"><h2>Investment memo</h2><p>{emptyMessage ?? 'Generate a memo from current deal inputs.'}</p></section>

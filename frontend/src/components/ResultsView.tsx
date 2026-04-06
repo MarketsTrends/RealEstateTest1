@@ -19,7 +19,12 @@ function fmtPct(value: number | null | undefined): string {
 
 export function ResultsView({ result }: Props): JSX.Element {
   if (!result) {
-    return <section className="panel"><p>Run an analysis to see results.</p></section>
+    return (
+      <section className="panel">
+        <h2>Results</h2>
+        <p>Run analysis to see core KPIs, risk flags, scenarios, and yearly projections.</p>
+      </section>
+    )
   }
 
   const { metrics } = result

@@ -90,6 +90,14 @@ function buildCompareUrl(ids: string[]): string {
   return `/compare?ids=${ids.join(',')}`
 }
 
+function investmentTone(view: SnapshotSummary['investment_view'] | MemoResponse['investment_view'] | null): 'good' | 'warn' | 'info' | 'neutral' {
+  if (view === 'strong') return 'good'
+  if (view === 'balanced') return 'info'
+  if (view === 'cautious') return 'warn'
+  if (view === 'weak') return 'warn'
+  return 'neutral'
+}
+
 export default function App(): JSX.Element {
   const compareIds = parseCompareIds(window.location.pathname, window.location.search)
   if (compareIds !== null) {
@@ -271,31 +279,38 @@ function LiveAnalysisPage(): JSX.Element {
 
   return (
     <main className="container">
-      <h1>Deal Analysis</h1>
-      <p className="subtitle">Minimal MVP UI for instant real-estate analysis.</p>
+      <div className="page-header">
+        <h1>Deal Analysis</h1>
+        <Badge label="Live mode (editable)" tone="info" />
+      </div>
+      <p className="subtitle">Quickly underwrite a rental deal, then save or compare snapshots.</p>
+      <section className="panel intro-panel">
+        <h2>Start in under 20 seconds</h2>
+        <ul>
+          <li>Load the demo deal, then run analysis.</li>
+          <li>Review core metrics, risk flags, memo, and comps.</li>
+          <li>Save a snapshot to share or compare deals side by side.</li>
+        </ul>
+      </section>
 
       <div className="actions">
         <button type="button" onClick={exportPdf} disabled={exporting || !result || dirty}>
-          {exporting ? 'Exporting PDF…' : 'Export PDF'}
+          {exporting ? 'Preparing PDF…' : 'Download PDF'}
         </button>
         <button type="button" onClick={generateMemo} disabled={memoLoading || !result || dirty}>
-          {memoLoading ? 'Generating memo…' : 'Generate memo'}
+          {memoLoading ? 'Generating memo…' : 'Create memo'}
         </button>
         <button type="button" onClick={saveSnapshot} disabled={saving || loading || !result || dirty}>
-          {saving ? 'Saving…' : 'Save analysis'}
+          {saving ? 'Saving…' : 'Save snapshot'}
         </button>
       </div>
 
-      {dirty && (
-        <div className="error">
-          Inputs changed. Re-run analysis to enable Export PDF, Generate memo, and Save analysis.
-        </div>
-      )}
+      {dirty && <div className="error">Inputs changed. Re-run analysis to refresh outputs before memo/PDF/save.</div>}
 
       {shareLink && (
         <section className="panel share-card">
           <div className="panel-header">
-            <h2>Snapshot saved</h2>
+          <h2>Snapshot saved</h2>
             <Badge label="Shareable" tone="info" />
           </div>
           <p>Your snapshot is now a read-only point-in-time link.</p>
@@ -340,14 +355,15 @@ function LiveAnalysisPage(): JSX.Element {
         </div>
 
         <div className="compare-toolbar">
-          <span className="muted">Compare selection: {selectedCompareIds.length}/4</span>
+          <span className="muted">Compare selection: {selectedCompareIds.length}/4 deals</span>
           <div className="share-actions">
             <a className={`button-link ${compareDisabled ? 'button-link-disabled' : ''}`} href={buildCompareUrl(selectedCompareIds)}>
-              Compare selected
+              Compare selected deals
             </a>
             <button type="button" onClick={() => setSelectedCompareIds([])} disabled={selectedCompareIds.length === 0}>Clear</button>
           </div>
         </div>
+        {selectedCompareIds.length < 2 && <p className="muted">Select at least 2 snapshots to compare.</p>}
         {selectedCompareIds.length > 4 && <p className="error-inline">Select at most 4 deals for comparison.</p>}
 
         {recentSnapshots.length === 0 ? (
@@ -370,7 +386,7 @@ function LiveAnalysisPage(): JSX.Element {
                   <p className="muted">{item.address_label ?? 'No address'} · {new Date(item.created_at).toLocaleString()}</p>
                 </div>
                 <div className="recent-badges">
-                  {item.investment_view ? <Badge label={item.investment_view} tone="good" /> : null}
+                  {item.investment_view ? <Badge label={item.investment_view} tone={investmentTone(item.investment_view)} /> : null}
                   {item.has_memo ? <Badge label="memo" /> : null}
                   {item.has_comps ? <Badge label="comps" /> : null}
                 </div>
@@ -380,10 +396,12 @@ function LiveAnalysisPage(): JSX.Element {
         )}
       </section>
 
-      <section className="assumptions">
-        <h3>Assumptions</h3>
+      <section className="assumptions panel">
+        <h3>How to use</h3>
         <ul>
           {assumptions.map((item) => <li key={item}>{item}</li>)}
+          <li>Some features depend on config: memo needs <code>OPENAI_API_KEY</code>; comps/snapshots need <code>DATABASE_URL</code>.</li>
+          <li>Saved snapshots and compare view use point-in-time saved outputs only.</li>
         </ul>
       </section>
     </main>
@@ -436,8 +454,8 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
           <div>
             <div className="hero-title-row">
               <h1>{snapshot.title}</h1>
-              <Badge label="Saved snapshot" tone="info" />
-              {snapshot.investment_view ? <Badge label={snapshot.investment_view} tone="good" /> : null}
+              <Badge label="Saved snapshot (read-only)" tone="info" />
+              {snapshot.investment_view ? <Badge label={snapshot.investment_view} tone={investmentTone(snapshot.investment_view)} /> : null}
             </div>
             <p className="subtitle">{snapshot.address_label ?? 'No address label'}</p>
           </div>
@@ -452,7 +470,7 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
             >
               {copyStatus === 'copied' ? 'Link copied' : 'Copy link'}
             </button>
-            <a className="button-link" href={buildCompareUrl([snapshot.id])}>Open in compare</a>
+            <a className="button-link" href={buildCompareUrl([snapshot.id])}>Add to compare</a>
           </div>
         </div>
 
@@ -566,7 +584,7 @@ function ComparePage({ ids }: { ids: string[] }): JSX.Element {
       <section className="panel">
         <div className="panel-header">
           <h1>Compare deals</h1>
-          <Badge label={`${snapshots.length} selected`} tone="info" />
+          <Badge label={`Compare mode · ${snapshots.length} selected`} tone="info" />
         </div>
         <p className="muted">Comparison uses saved snapshot data only (no recalculation).</p>
         <div className="compare-chip-row">
@@ -590,7 +608,7 @@ function ComparePage({ ids }: { ids: string[] }): JSX.Element {
             <p className="muted">{s.address_label ?? 'No address label'}</p>
             <p className="muted">{s.request.property.property_type} · {s.request.property.surface_m2 ?? '—'} m² · DPE {s.request.property.dpe_class ?? '—'}</p>
             <div className="recent-badges">
-              {s.investment_view ? <Badge label={s.investment_view} tone="good" /> : <Badge label="no memo view" />}
+              {s.investment_view ? <Badge label={s.investment_view} tone={investmentTone(s.investment_view)} /> : <Badge label="no memo view" />}
             </div>
           </div>
         ))}
