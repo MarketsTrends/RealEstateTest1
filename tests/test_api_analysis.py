@@ -7,7 +7,7 @@ client = TestClient(app)
 
 def test_analysis_endpoint_success() -> None:
     payload = {
-        "property": {"property_type": "apartment", "country_code": "FR"},
+        "property": {"property_type": "apartment", "country_code": "FR", "dpe_class": "F"},
         "acquisition": {"purchase_price_eur": 200000, "fees_and_works_eur": 15000},
         "income": {"monthly_rent_eur": 1350, "other_monthly_income_eur": 0, "vacancy_rate": 0.05},
         "expenses": {"annual_operating_expenses_eur": 4000},

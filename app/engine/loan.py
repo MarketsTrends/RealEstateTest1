@@ -53,12 +53,23 @@ def remaining_balance(
     annual_rate: float,
     term_years: int,
     months_paid: int,
+    payment: float | None = None,
 ) -> float:
     if principal <= 0:
         return 0.0
-    schedule = amortization_schedule(principal, annual_rate, term_years)
+
+    total_months = term_years * 12
     if months_paid <= 0:
         return principal
-    if months_paid >= len(schedule):
+    if months_paid >= total_months:
         return 0.0
-    return schedule[months_paid - 1]["balance_end"]
+
+    monthly_rate = annual_rate / 12
+    pmt = payment if payment is not None else monthly_loan_payment(principal, annual_rate, term_years)
+
+    if monthly_rate == 0:
+        return max(0.0, principal - pmt * months_paid)
+
+    factor = (1 + monthly_rate) ** months_paid
+    balance = principal * factor - pmt * ((factor - 1) / monthly_rate)
+    return max(0.0, balance)

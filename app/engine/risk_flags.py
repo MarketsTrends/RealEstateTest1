@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.schemas import AnalysisRequest, RiskFlag
+from app.schemas import AnalysisRequest, DPEClass, RiskFlag
 
 
 def build_risk_flags(
@@ -53,12 +53,20 @@ def build_risk_flags(
             )
         )
 
-    if payload.property.country_code.upper() == "FR":
+    if payload.property.dpe_class == DPEClass.G:
         flags.append(
             RiskFlag(
-                code="REGULATORY_DPE_FG_PLACEHOLDER",
-                severity="info",
-                message="Placeholder: verify DPE class (F/G can affect rental feasibility)",
+                code="DPE_G_REGULATORY_RISK",
+                severity="high",
+                message="DPE class G: strong regulatory and reletting risk in France",
+            )
+        )
+    elif payload.property.dpe_class == DPEClass.F:
+        flags.append(
+            RiskFlag(
+                code="DPE_F_REGULATORY_RISK",
+                severity="medium",
+                message="DPE class F: elevated regulatory risk, renovation planning recommended",
             )
         )
 

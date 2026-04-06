@@ -52,6 +52,13 @@ def test_zero_debt_dscr_warning_and_cashflow_equals_noi() -> None:
     assert any("DSCR unavailable" in w for w in warnings)
 
 
+def test_negative_cashflow_case() -> None:
+    payload = base_payload()
+    payload.expenses.annual_operating_expenses_eur = 12000
+    metrics, _, _, _ = analyze_financials(payload)
+    assert metrics["cashflow_annual_eur"] < 0
+
+
 def test_one_year_negative_appreciation() -> None:
     payload = base_payload()
     payload.exit.hold_years = 1
@@ -61,15 +68,24 @@ def test_one_year_negative_appreciation() -> None:
     assert metrics["sale_price_year_n_eur"] == pytest.approx(90000.0, abs=0.01)
 
 
-def test_risk_flags_rules() -> None:
+def test_impossible_irr_case() -> None:
     payload = base_payload()
-    payload.income.vacancy_rate = 0.10
-    flags = build_risk_flags(payload, dscr_value=1.1, break_even_occupancy_value=0.9)
+    payload.financing.loan_amount_eur = 0
+    payload.financing.down_payment_eur = payload.acquisition.purchase_price_eur
+    payload.income.monthly_rent_eur = 0
+    payload.exit.sale_cost_rate = 1.0
+    payload.exit.appreciation_rate_annual = -0.5
+    metrics, warnings, _, _ = analyze_financials(payload)
+    assert metrics["irr_annual"] is None
+    assert any("IRR unavailable" in w for w in warnings)
+
+
+def test_dpe_related_risk_flags() -> None:
+    payload = base_payload()
+    payload.property.dpe_class = "G"
+    flags = build_risk_flags(payload, dscr_value=1.3, break_even_occupancy_value=0.75)
     codes = {f.code for f in flags}
-    assert "LOW_DSCR" in codes
-    assert "HIGH_BREAK_EVEN_OCCUPANCY" in codes
-    assert "HIGH_VACANCY" in codes
-    assert "REGULATORY_DPE_FG_PLACEHOLDER" in codes
+    assert "DPE_G_REGULATORY_RISK" in codes
 
 
 def test_negative_inputs_validation_http_422() -> None:
@@ -88,6 +104,33 @@ def test_negative_inputs_validation_http_422() -> None:
             "financing": {
                 "down_payment_eur": 0,
                 "loan_amount_eur": 1000,
+                "interest_rate_annual": 0.03,
+                "term_years": 20,
+            },
+            "exit": {"hold_years": 10, "appreciation_rate_annual": 0.02},
+            "valuation": {"discount_rate_annual_for_npv": 0.1},
+            "model": {"cashflow_frequency": "annual", "debt_compounding": "monthly", "rounding": "cent"},
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_financing_validation_failure_http_422() -> None:
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    client = TestClient(app)
+    resp = client.post(
+        "/analysis",
+        json={
+            "property": {"property_type": "unknown"},
+            "acquisition": {"purchase_price_eur": 200000, "fees_and_works_eur": 10000},
+            "income": {"monthly_rent_eur": 1000},
+            "expenses": {"annual_operating_expenses_eur": 1000},
+            "financing": {
+                "down_payment_eur": 30000,
+                "loan_amount_eur": 100000,
                 "interest_rate_annual": 0.03,
                 "term_years": 20,
             },

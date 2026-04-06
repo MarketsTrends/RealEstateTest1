@@ -27,8 +27,6 @@ def analyze_financials(payload: AnalysisRequest) -> tuple[dict[str, Any], list[s
     exit_data = payload.exit
 
     total_cost = acq.purchase_price_eur + acq.fees_and_works_eur
-    if abs((fin.loan_amount_eur + fin.down_payment_eur) - acq.purchase_price_eur) > 0.01:
-        warnings.append("loan_amount_eur + down_payment_eur differs from purchase_price_eur")
 
     gross = gross_rent_annual(inc.monthly_rent_eur, inc.other_monthly_income_eur)
     effective = effective_rent_annual(gross, inc.vacancy_rate)
@@ -53,6 +51,7 @@ def analyze_financials(payload: AnalysisRequest) -> tuple[dict[str, Any], list[s
         fin.interest_rate_annual,
         fin.term_years,
         months_paid,
+        payment=pmt,
     )
     sale_net = sale_price * (1 - exit_data.sale_cost_rate)
     sale_proceeds_net = sale_net - loan_balance
@@ -104,6 +103,7 @@ def analyze_financials(payload: AnalysisRequest) -> tuple[dict[str, Any], list[s
         interest_rate_annual=fin.interest_rate_annual,
         term_years=fin.term_years,
         hold_years=exit_data.hold_years,
+        monthly_payment_eur=pmt,
     )
 
     return metrics, warnings, cashflows, yearly

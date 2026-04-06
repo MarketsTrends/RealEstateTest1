@@ -4,13 +4,23 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PropertyType(str, Enum):
     apartment = "apartment"
     house = "house"
     unknown = "unknown"
+
+
+class DPEClass(str, Enum):
+    A = "A"
+    B = "B"
+    C = "C"
+    D = "D"
+    E = "E"
+    F = "F"
+    G = "G"
 
 
 class PropertyInput(BaseModel):
@@ -21,6 +31,7 @@ class PropertyInput(BaseModel):
     surface_m2: float | None = Field(default=None, ge=0)
     rooms: int | None = Field(default=None, ge=0)
     country_code: str = "FR"
+    dpe_class: DPEClass | None = None
 
 
 class AcquisitionInput(BaseModel):
@@ -91,6 +102,16 @@ class AnalysisRequest(BaseModel):
     exit: ExitAssumptionsInput
     valuation: ValuationInput = Field(default_factory=ValuationInput)
     model: ModelInput = Field(default_factory=ModelInput)
+
+    @model_validator(mode="after")
+    def validate_financing_consistency(self) -> "AnalysisRequest":
+        expected = self.acquisition.purchase_price_eur
+        actual = self.financing.loan_amount_eur + self.financing.down_payment_eur
+        if abs(expected - actual) > 0.01:
+            raise ValueError(
+                "financing mismatch: loan_amount_eur + down_payment_eur must equal purchase_price_eur"
+            )
+        return self
 
 
 class RiskSeverity(str, Enum):

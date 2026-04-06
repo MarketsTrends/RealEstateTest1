@@ -57,6 +57,7 @@ def build_yearly_projections(
     interest_rate_annual: float,
     term_years: int,
     hold_years: int,
+    monthly_payment_eur: float,
 ) -> list[YearlyProjection]:
     rows: list[YearlyProjection] = []
     for year in range(1, hold_years + 1):
@@ -68,7 +69,13 @@ def build_yearly_projections(
             annual_operating_expenses_eur=annual_operating_expenses_eur,
         )
         months_paid = min(year * 12, term_years * 12)
-        loan_balance = remaining_balance(loan_amount_eur, interest_rate_annual, term_years, months_paid)
+        loan_balance = remaining_balance(
+            loan_amount_eur,
+            interest_rate_annual,
+            term_years,
+            months_paid,
+            payment=monthly_payment_eur,
+        )
         property_value = purchase_price_eur * ((1 + appreciation_rate_annual) ** year)
         cashflow = op["noi_annual_eur"] - annual_debt_service_eur
         rows.append(
