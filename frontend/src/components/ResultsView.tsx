@@ -22,7 +22,7 @@ export function ResultsView({ result }: Props): JSX.Element {
     return (
       <section className="panel">
         <h2>Results</h2>
-        <p>Run analysis to see core KPIs, risk flags, scenarios, and yearly projections.</p>
+        <p>Run analysis to view core KPIs, risk flags, scenarios, and yearly projections.</p>
       </section>
     )
   }

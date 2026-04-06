@@ -96,9 +96,8 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
           <input type="number" value={form.income.other_monthly_income_eur} onChange={(e) => update('income.other_monthly_income_eur', e.target.value)} />
         </label>
 
-        <label>Vacancy rate (decimal)
+        <label>Vacancy rate (decimal, e.g. 0.05 = 5%)
           <input type="number" step="0.001" value={form.income.vacancy_rate} onChange={(e) => update('income.vacancy_rate', e.target.value)} />
-          <small className="helper-text">Example: 0.05 = 5% annual vacancy.</small>
         </label>
 
         <label>Annual operating expenses (€)
@@ -113,9 +112,8 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
           <input type="number" value={form.financing.loan_amount_eur} onChange={(e) => update('financing.loan_amount_eur', e.target.value)} />
         </label>
 
-        <label>Interest rate annual (decimal)
+        <label>Annual interest rate (decimal, e.g. 0.032 = 3.2%)
           <input type="number" step="0.001" value={form.financing.interest_rate_annual} onChange={(e) => update('financing.interest_rate_annual', e.target.value)} />
-          <small className="helper-text">Example: 0.032 = 3.2% annual rate.</small>
         </label>
 
         <label>Term years
@@ -126,13 +124,12 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
           <input type="number" value={form.exit.hold_years} onChange={(e) => update('exit.hold_years', e.target.value)} />
         </label>
 
-        <label>Appreciation annual (decimal)
+        <label>Annual appreciation (decimal)
           <input type="number" step="0.001" value={form.exit.appreciation_rate_annual} onChange={(e) => update('exit.appreciation_rate_annual', e.target.value)} />
         </label>
 
-        <label>Sale cost rate (decimal)
+        <label>Exit sale costs (decimal)
           <input type="number" step="0.001" value={form.exit.sale_cost_rate} onChange={(e) => update('exit.sale_cost_rate', e.target.value)} />
-          <small className="helper-text">Example: 0.06 = 6% transaction costs on exit.</small>
         </label>
       </div>
 

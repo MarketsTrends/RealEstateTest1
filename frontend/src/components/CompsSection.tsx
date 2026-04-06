@@ -10,10 +10,16 @@ interface Props {
 }
 
 const currency = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 2 })
+const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
 
 function money(v: number | null): string {
   if (v === null) return '—'
   return currency.format(v)
+}
+
+function sqm(v: number | null): string {
+  if (v === null) return '—'
+  return `${number.format(v)} €/m²`
 }
 
 export function CompsSection({ comps, loading, error, hasCoordinates, noCoordinatesMessage, emptyMessage }: Props): JSX.Element {
@@ -41,8 +47,8 @@ export function CompsSection({ comps, loading, error, hasCoordinates, noCoordina
 
       <div className="kpi-grid">
         <div className="kpi-card"><span>Comps count</span><strong>{comps.stats.n}</strong></div>
-        <div className="kpi-card"><span>Median €/m²</span><strong>{money(comps.stats.median_price_per_sqm_eur)}</strong></div>
-        <div className="kpi-card"><span>Quartile range €/m²</span><strong>{money(comps.stats.p25_price_per_sqm_eur)} - {money(comps.stats.p75_price_per_sqm_eur)}</strong></div>
+        <div className="kpi-card"><span>Median €/m²</span><strong>{sqm(comps.stats.median_price_per_sqm_eur)}</strong></div>
+        <div className="kpi-card"><span>Quartile range €/m²</span><strong>{sqm(comps.stats.p25_price_per_sqm_eur)} - {sqm(comps.stats.p75_price_per_sqm_eur)}</strong></div>
       </div>
 
       <table>

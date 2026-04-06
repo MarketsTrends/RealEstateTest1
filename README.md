@@ -195,7 +195,7 @@ Dans l'UI live, toute modification du formulaire invalide l'état dérivé (rés
 ### Compare saved snapshots
 
 - Sélectionnez 2 à 4 snapshots depuis la section **Recent analyses** (checkbox `Compare`).
-- Ouvrez la vue comparaison via `Compare selected`.
+- Ouvrez la vue comparaison via `Compare selected deals`.
 - Route utilisée: `/compare?ids=<id1>,<id2>,<id3>`.
 - La comparaison utilise uniquement les payloads snapshot sauvegardés (pas de recalcul de l'analyse, pas de régénération memo/comps).
 - La vue compare est décision-support (pas de “winner” automatique).

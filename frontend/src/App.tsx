@@ -60,6 +60,7 @@ const sampleDeal: AnalysisRequest = {
 
 const euro = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 const pct = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 2 })
+const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
 
 function money(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
@@ -69,6 +70,11 @@ function money(value: number | null | undefined): string {
 function ratio(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
   return pct.format(value)
+}
+
+function eurPerSqm(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return `${number.format(value)} €/m²`
 }
 
 function parseSnapshotIdFromPath(pathname: string): string | null {
@@ -355,7 +361,7 @@ function LiveAnalysisPage(): JSX.Element {
         </div>
 
         <div className="compare-toolbar">
-          <span className="muted">Compare selection: {selectedCompareIds.length}/4 deals</span>
+          <span className="muted">Select 2 to 4 saved snapshots to compare ({selectedCompareIds.length}/4 selected).</span>
           <div className="share-actions">
             <a className={`button-link ${compareDisabled ? 'button-link-disabled' : ''}`} href={buildCompareUrl(selectedCompareIds)}>
               Compare selected deals
@@ -363,7 +369,7 @@ function LiveAnalysisPage(): JSX.Element {
             <button type="button" onClick={() => setSelectedCompareIds([])} disabled={selectedCompareIds.length === 0}>Clear</button>
           </div>
         </div>
-        {selectedCompareIds.length < 2 && <p className="muted">Select at least 2 snapshots to compare.</p>}
+        {selectedCompareIds.length < 2 && <p className="muted">Comparison starts once at least 2 snapshots are selected.</p>}
         {selectedCompareIds.length > 4 && <p className="error-inline">Select at most 4 deals for comparison.</p>}
 
         {recentSnapshots.length === 0 ? (
@@ -470,9 +476,9 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
             >
               {copyStatus === 'copied' ? 'Link copied' : 'Copy link'}
             </button>
-            <a className="button-link" href={buildCompareUrl([snapshot.id])}>Add to compare</a>
           </div>
         </div>
+        <p className="muted">To compare deals, return to Recent analyses and select 2 to 4 snapshots.</p>
 
         <div className="snapshot-meta-grid">
           <MetaItem label="Saved at" value={new Date(snapshot.created_at).toLocaleString()} />
@@ -486,7 +492,7 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
           <KpiItem label="Annual cash flow" value={money(snapshot.analysis.metrics.cashflow_annual_eur)} />
           <KpiItem label="IRR" value={ratio(snapshot.analysis.metrics.irr_annual)} />
           <KpiItem label="DSCR" value={snapshot.analysis.metrics.dscr?.toFixed(2) ?? '—'} />
-          <KpiItem label="Median €/m² comps" value={money(snapshot.comps?.stats.median_price_per_sqm_eur ?? null)} />
+          <KpiItem label="Median €/m² comps" value={eurPerSqm(snapshot.comps?.stats.median_price_per_sqm_eur ?? null)} />
         </div>
       </section>
 
@@ -563,7 +569,7 @@ function ComparePage({ ids }: { ids: string[] }): JSX.Element {
   }, [ids])
 
   if (ids.length < 2) {
-    return <main className="container"><section className="panel"><h1>Compare deals</h1><p>Select at least 2 snapshots from recent analyses.</p><p><a href="/">Back to analyses</a></p></section></main>
+    return <main className="container"><section className="panel"><h1>Compare deals</h1><p>Select 2 to 4 saved snapshots from Recent analyses.</p><p><a href="/">Back to analyses</a></p></section></main>
   }
 
   if (ids.length > 4) {
@@ -682,8 +688,8 @@ function ComparePage({ ids }: { ids: string[] }): JSX.Element {
             {s.comps ? (
               <ul>
                 <li>Count: {s.comps.stats.n}</li>
-                <li>Median €/m²: {money(s.comps.stats.median_price_per_sqm_eur)}</li>
-                <li>Quartile range: {money(s.comps.stats.p25_price_per_sqm_eur)} – {money(s.comps.stats.p75_price_per_sqm_eur)}</li>
+                <li>Median €/m²: {eurPerSqm(s.comps.stats.median_price_per_sqm_eur)}</li>
+                <li>Quartile range: {eurPerSqm(s.comps.stats.p25_price_per_sqm_eur)} – {eurPerSqm(s.comps.stats.p75_price_per_sqm_eur)}</li>
               </ul>
             ) : <p className="muted">No comps snapshot saved.</p>}
           </div>
