@@ -174,6 +174,7 @@ Le frontend expose des liens partageables opaques:
 
 - route: `/analysis/:id`
 - comportement: charge `GET /analysis/{id}` et rend la page à partir du snapshot sauvegardé.
+- la page snapshot est en mode **read-only** (vue de revue partageable, sans actions live de calcul/sauvegarde).
 
 Modèle sécurité MVP: bearer-by-link (pas d'auth, pas de permissions complexes à ce stade).
 

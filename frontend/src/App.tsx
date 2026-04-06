@@ -58,6 +58,19 @@ const sampleDeal: AnalysisRequest = {
   }
 }
 
+const euro = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+const pct = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 2 })
+
+function money(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return euro.format(value)
+}
+
+function ratio(value: number | null | undefined): string {
+  if (value === null || value === undefined) return '—'
+  return pct.format(value)
+}
+
 function parseSnapshotIdFromPath(pathname: string): string | null {
   const match = pathname.match(/^\/analysis\/([^/]+)$/)
   return match ? decodeURIComponent(match[1]) : null
@@ -71,6 +84,10 @@ export default function App(): JSX.Element {
   }
 
   return <LiveAnalysisPage />
+}
+
+function Badge({ label, tone = 'neutral' }: { label: string; tone?: 'neutral' | 'good' | 'warn' | 'info' }): JSX.Element {
+  return <span className={`badge badge-${tone}`}>{label}</span>
 }
 
 function LiveAnalysisPage(): JSX.Element {
@@ -90,6 +107,7 @@ function LiveAnalysisPage(): JSX.Element {
   const [savedSnapshot, setSavedSnapshot] = useState<SnapshotSummary | null>(null)
   const [recentSnapshots, setRecentSnapshots] = useState<SnapshotSummary[]>([])
   const [dirty, setDirty] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle')
 
   const assumptions = useMemo(
     () => [
@@ -119,6 +137,7 @@ function LiveAnalysisPage(): JSX.Element {
     setComps(null)
     setMemo(null)
     setSavedSnapshot(null)
+    setCopyStatus('idle')
     setError(null)
     setCompsError(null)
     setMemoError(null)
@@ -133,6 +152,7 @@ function LiveAnalysisPage(): JSX.Element {
       setMemoError(null)
       setMemo(null)
       setSavedSnapshot(null)
+      setCopyStatus('idle')
       setSaveError(null)
 
       const data = await postAnalysis(form)
@@ -242,20 +262,26 @@ function LiveAnalysisPage(): JSX.Element {
       )}
 
       {shareLink && (
-        <section className="panel">
-          <h2>Snapshot saved</h2>
-          <p>Share link:</p>
-          <p><a href={shareLink}>{shareLink}</a></p>
-          <button
-            type="button"
-            onClick={() => {
-              if (navigator.clipboard) {
+        <section className="panel share-card">
+          <div className="panel-header">
+            <h2>Snapshot saved</h2>
+            <Badge label="Shareable" tone="info" />
+          </div>
+          <p>Your snapshot is now a read-only point-in-time link.</p>
+          <a className="share-link" href={shareLink}>{shareLink}</a>
+          <div className="share-actions">
+            <button
+              type="button"
+              onClick={() => {
+                if (!navigator.clipboard) return
                 void navigator.clipboard.writeText(shareLink)
-              }
-            }}
-          >
-            Copy share link
-          </button>
+                setCopyStatus('copied')
+              }}
+            >
+              {copyStatus === 'copied' ? 'Link copied' : 'Copy link'}
+            </button>
+            <a className="button-link" href={shareLink}>Open snapshot</a>
+          </div>
         </section>
       )}
       {saveError && <div className="error">{saveError}</div>}
@@ -277,14 +303,25 @@ function LiveAnalysisPage(): JSX.Element {
       {error && <div className="error">{error}</div>}
 
       <section className="panel">
-        <h2>Recent analyses</h2>
+        <div className="panel-header">
+          <h2>Recent analyses</h2>
+          <Badge label="Newest first" />
+        </div>
         {recentSnapshots.length === 0 ? (
           <p>No saved analyses yet.</p>
         ) : (
-          <ul>
+          <ul className="recent-list">
             {recentSnapshots.map((item) => (
-              <li key={item.id}>
-                <a href={`/analysis/${item.id}`}>{item.title}</a> · {new Date(item.created_at).toLocaleString()} {item.investment_view ? `· ${item.investment_view}` : ''}
+              <li key={item.id} className="recent-item">
+                <div>
+                  <a href={`/analysis/${item.id}`}><strong>{item.title}</strong></a>
+                  <p className="muted">{item.address_label ?? 'No address'} · {new Date(item.created_at).toLocaleString()}</p>
+                </div>
+                <div className="recent-badges">
+                  {item.investment_view ? <Badge label={item.investment_view} tone="good" /> : null}
+                  {item.has_memo ? <Badge label="memo" /> : null}
+                  {item.has_comps ? <Badge label="comps" /> : null}
+                </div>
               </li>
             ))}
           </ul>
@@ -305,6 +342,7 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
   const [snapshot, setSnapshot] = useState<SnapshotResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle')
 
   useEffect(() => {
     const load = async (): Promise<void> => {
@@ -335,11 +373,49 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
     return <main className="container"><div className="error">Snapshot not found.</div></main>
   }
 
+  const shareLink = `${window.location.origin}/analysis/${snapshot.id}`
+
   return (
     <main className="container">
       <p><a href="/">← Back to live analysis</a></p>
-      <h1>{snapshot.title}</h1>
-      <p className="subtitle">Saved snapshot · {new Date(snapshot.created_at).toLocaleString()} · {snapshot.address_label ?? 'No address label'}</p>
+
+      <section className="panel snapshot-hero">
+        <div className="snapshot-hero-top">
+          <div>
+            <div className="hero-title-row">
+              <h1>{snapshot.title}</h1>
+              <Badge label="Saved snapshot" tone="info" />
+              {snapshot.investment_view ? <Badge label={snapshot.investment_view} tone="good" /> : null}
+            </div>
+            <p className="subtitle">{snapshot.address_label ?? 'No address label'}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (!navigator.clipboard) return
+              void navigator.clipboard.writeText(shareLink)
+              setCopyStatus('copied')
+            }}
+          >
+            {copyStatus === 'copied' ? 'Link copied' : 'Copy link'}
+          </button>
+        </div>
+
+        <div className="snapshot-meta-grid">
+          <MetaItem label="Saved at" value={new Date(snapshot.created_at).toLocaleString()} />
+          <MetaItem label="Property type" value={snapshot.request.property.property_type} />
+          <MetaItem label="Surface" value={snapshot.request.property.surface_m2 ? `${snapshot.request.property.surface_m2} m²` : '—'} />
+          <MetaItem label="DPE" value={snapshot.request.property.dpe_class ?? '—'} />
+        </div>
+
+        <div className="headline-kpis">
+          <KpiItem label="NOI" value={money(snapshot.analysis.metrics.noi_annual_eur)} />
+          <KpiItem label="Annual cash flow" value={money(snapshot.analysis.metrics.cashflow_annual_eur)} />
+          <KpiItem label="IRR" value={ratio(snapshot.analysis.metrics.irr_annual)} />
+          <KpiItem label="DSCR" value={snapshot.analysis.metrics.dscr?.toFixed(2) ?? '—'} />
+          <KpiItem label="Median €/m² comps" value={money(snapshot.comps?.stats.median_price_per_sqm_eur ?? null)} />
+        </div>
+      </section>
 
       <ResultsView result={snapshot.analysis} />
       <MemoSection memo={snapshot.memo} loading={false} error={null} emptyMessage="No memo was saved for this snapshot." />
@@ -351,6 +427,31 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
         noCoordinatesMessage="No coordinates were provided in the saved request."
         emptyMessage="No comps were saved for this snapshot."
       />
+
+      <footer className="snapshot-footer">
+        <p>
+          Snapshot ID: <code>{snapshot.id}</code> · Engine {snapshot.engine_version} · App {snapshot.app_version}
+        </p>
+        <p className="muted">This page reflects a saved point-in-time analysis snapshot.</p>
+      </footer>
     </main>
+  )
+}
+
+function MetaItem({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="meta-item">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
+function KpiItem({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="kpi-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   )
 }
