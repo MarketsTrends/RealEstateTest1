@@ -141,6 +141,7 @@ Objectif produit: transformer l'app en outil réutilisable via snapshots persist
     - `title` (optionnel)
   - comportement:
     - si `analysis` absent, le backend le calcule au moment du save,
+    - pour intégrité produit, le backend recalcule l'analyse à partir de `request` au save,
     - sauvegarde un snapshot **complet** en base (inputs + outputs + hypothèses visibles),
     - retourne les métadonnées du snapshot (id, dates, title, etc.).
 
@@ -175,6 +176,10 @@ Le frontend expose des liens partageables opaques:
 - comportement: charge `GET /analysis/{id}` et rend la page à partir du snapshot sauvegardé.
 
 Modèle sécurité MVP: bearer-by-link (pas d'auth, pas de permissions complexes à ce stade).
+
+### Intégrité snapshot côté UI
+
+Dans l'UI live, toute modification du formulaire invalide l'état dérivé (résultat/comps/memo/snapshot local) et impose de relancer `Run analysis` avant export/memo/save.
 
 ## Export PDF
 

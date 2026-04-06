@@ -89,6 +89,7 @@ function LiveAnalysisPage(): JSX.Element {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedSnapshot, setSavedSnapshot] = useState<SnapshotSummary | null>(null)
   const [recentSnapshots, setRecentSnapshots] = useState<SnapshotSummary[]>([])
+  const [dirty, setDirty] = useState(false)
 
   const assumptions = useMemo(
     () => [
@@ -111,6 +112,19 @@ function LiveAnalysisPage(): JSX.Element {
     void refreshRecent()
   }, [])
 
+  const updateForm = (nextForm: AnalysisRequest): void => {
+    setForm(nextForm)
+    setDirty(true)
+    setResult(null)
+    setComps(null)
+    setMemo(null)
+    setSavedSnapshot(null)
+    setError(null)
+    setCompsError(null)
+    setMemoError(null)
+    setSaveError(null)
+  }
+
   const submit = async (): Promise<void> => {
     try {
       setLoading(true)
@@ -123,6 +137,7 @@ function LiveAnalysisPage(): JSX.Element {
 
       const data = await postAnalysis(form)
       setResult(data)
+      setDirty(false)
 
       if (form.property.lat !== null && form.property.lon !== null) {
         setCompsLoading(true)
@@ -209,16 +224,22 @@ function LiveAnalysisPage(): JSX.Element {
       <p className="subtitle">Minimal MVP UI for instant real-estate analysis.</p>
 
       <div className="actions">
-        <button type="button" onClick={exportPdf} disabled={exporting}>
+        <button type="button" onClick={exportPdf} disabled={exporting || !result || dirty}>
           {exporting ? 'Exporting PDF…' : 'Export PDF'}
         </button>
-        <button type="button" onClick={generateMemo} disabled={memoLoading}>
+        <button type="button" onClick={generateMemo} disabled={memoLoading || !result || dirty}>
           {memoLoading ? 'Generating memo…' : 'Generate memo'}
         </button>
-        <button type="button" onClick={saveSnapshot} disabled={saving || loading}>
+        <button type="button" onClick={saveSnapshot} disabled={saving || loading || !result || dirty}>
           {saving ? 'Saving…' : 'Save analysis'}
         </button>
       </div>
+
+      {dirty && (
+        <div className="error">
+          Inputs changed. Re-run analysis to enable Export PDF, Generate memo, and Save analysis.
+        </div>
+      )}
 
       {shareLink && (
         <section className="panel">
@@ -240,7 +261,7 @@ function LiveAnalysisPage(): JSX.Element {
       {saveError && <div className="error">{saveError}</div>}
 
       <div className="layout">
-        <DealForm form={form} onChange={setForm} onSubmit={submit} loading={loading} onLoadSample={() => setForm(sampleDeal)} />
+        <DealForm form={form} onChange={updateForm} onSubmit={submit} loading={loading} onLoadSample={() => updateForm(sampleDeal)} />
         <ResultsView result={result} />
       </div>
 

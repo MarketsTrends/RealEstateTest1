@@ -83,6 +83,34 @@ def test_save_snapshot_stores_null_optional_payloads(monkeypatch) -> None:
     assert captured["memo_payload"] is None
 
 
+def test_save_snapshot_recomputes_analysis_even_if_provided(monkeypatch) -> None:
+    captured: dict[str, object] = {}
+    req = sample_request()
+    computed = run_analysis(req)
+
+    def fake_insert_snapshot(conn, **kwargs):  # type: ignore[no-untyped-def]
+        captured.update(kwargs)
+        return {
+            "id": kwargs["snapshot_id"],
+            "created_at": datetime(2026, 1, 6, tzinfo=timezone.utc),
+            "updated_at": datetime(2026, 1, 6, tzinfo=timezone.utc),
+        }
+
+    def fake_run_analysis(payload):  # type: ignore[no-untyped-def]
+        return computed
+
+    monkeypatch.setattr(snapshot_service, "get_connection", fake_conn_ctx)
+    monkeypatch.setattr(snapshot_service, "insert_snapshot", fake_insert_snapshot)
+    monkeypatch.setattr(snapshot_service, "run_analysis", fake_run_analysis)
+
+    settings = Settings("x", "0.1.0", "postgresql://test", None, "gpt-4.1-mini")
+    payload = SnapshotSaveRequest(request=req, analysis=run_analysis(req), comps=None, memo=None, title="Deal B")
+
+    snapshot_service.save_snapshot(payload, settings)
+
+    assert captured["analysis_payload"]["meta"]["engine_version"] == computed.meta.engine_version
+
+
 def test_get_snapshot_success(monkeypatch) -> None:
     req = sample_request()
     analysis = run_analysis(req)

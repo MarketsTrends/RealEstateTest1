@@ -28,7 +28,9 @@ def save_snapshot(payload: SnapshotSaveRequest, settings: Settings) -> SnapshotS
     if not settings.database_url:
         raise HTTPException(status_code=503, detail="Snapshot storage unavailable: DATABASE_URL not configured")
 
-    analysis: AnalysisResponse = payload.analysis if payload.analysis is not None else run_analysis(payload.request)
+    # Product-integrity rule: snapshot analysis is always recomputed from request at save time.
+    # This avoids storing mismatched request/output pairs if client-side derived state is stale.
+    analysis: AnalysisResponse = run_analysis(payload.request)
     snapshot_id = str(uuid4())
     title = payload.title.strip() if payload.title and payload.title.strip() else _default_title(payload)
 
