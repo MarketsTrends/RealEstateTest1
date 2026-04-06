@@ -18,6 +18,17 @@ body {
   color: #4b5563;
 }
 
+
+.actions {
+  margin: 10px 0 14px;
+}
+
+.actions button {
+  background: #0f766e;
+  color: white;
+  border: 1px solid #0f766e;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 1fr 1fr;

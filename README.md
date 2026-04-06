@@ -7,6 +7,7 @@ Backend MVP pour l'analyse de deals immobiliers, déterministe et testable offli
 - Python 3.12+
 - Node.js 20+
 - Docker + Docker Compose (pour Postgres/PostGIS local)
+- Dépendances système WeasyPrint (Cairo/Pango/Fontconfig) si non présentes sur votre OS
 
 ## Installation backend
 
@@ -31,9 +32,12 @@ npm install
 - `app/main.py`: création FastAPI minimale + registration des routers.
 - `app/api/analysis.py`: endpoint `POST /analysis`.
 - `app/api/comps.py`: endpoint `GET /comps/sales`.
+- `app/api/reports.py`: endpoint `POST /report/pdf`.
 - `app/services/analysis_service.py`: orchestration de la réponse d'analyse.
 - `app/services/comps_service.py`: orchestration comps + fallback DB.
-- `app/engine/*`: logique financière pure (prêt, cashflows, métriques, scénarios, risques).
+- `app/services/report_service.py`: rendu HTML + conversion PDF WeasyPrint.
+- `app/templates/report.html`: template rapport PDF.
+- `app/static/report.css`: style print du rapport.
 - `frontend/`: application React + Vite TypeScript, page unique Deal Analysis.
 
 ## Lancer la base Postgres/PostGIS
@@ -67,6 +71,15 @@ Configurer via:
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
+## Export PDF
+
+- Endpoint: `POST /report/pdf`
+- Input: même payload que `/analysis`
+- Output: `application/pdf`
+- Nom suggéré: `deal-analysis-report.pdf`
+
+Le rapport PDF est généré côté backend de façon déterministe à partir de la sortie d'analyse existante (pas de données inventées, pas de charts artificiels).
+
 ## Validation financière
 
 `POST /analysis` applique une validation stricte:
@@ -97,6 +110,7 @@ Les scénarios appliquent des deltas lisibles sur loyer, vacance, taux, appréci
 - Calculs pré-tax uniquement.
 - Projections annuelles avec hypothèses plates (loyer, vacance, OPEX constants au sein d'un scénario).
 - Pas d'inflation détaillée, pas de fiscalité, pas de capex récurrent modélisé.
+- Le PDF n'intègre pas les comps ni de visualisations avancées.
 
 ## Exécuter les tests
 

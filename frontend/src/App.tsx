@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { DealForm } from './components/DealForm'
 import { ResultsView } from './components/ResultsView'
-import { postAnalysis } from './lib/api'
+import { downloadPdfReport, postAnalysis } from './lib/api'
 import type { AnalysisRequest, AnalysisResponse } from './lib/types'
 
 const sampleDeal: AnalysisRequest = {
@@ -50,6 +50,7 @@ export default function App(): JSX.Element {
   const [form, setForm] = useState<AnalysisRequest>(sampleDeal)
   const [result, setResult] = useState<AnalysisResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const assumptions = useMemo(
@@ -74,10 +75,29 @@ export default function App(): JSX.Element {
     }
   }
 
+  const exportPdf = async (): Promise<void> => {
+    try {
+      setExporting(true)
+      setError(null)
+      await downloadPdfReport(form)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setError(message)
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <main className="container">
       <h1>Deal Analysis</h1>
       <p className="subtitle">Minimal MVP UI for instant real-estate analysis.</p>
+
+      <div className="actions">
+        <button type="button" onClick={exportPdf} disabled={exporting}>
+          {exporting ? 'Exporting PDF…' : 'Export PDF'}
+        </button>
+      </div>
 
       <div className="layout">
         <DealForm form={form} onChange={setForm} onSubmit={submit} loading={loading} onLoadSample={() => setForm(sampleDeal)} />
