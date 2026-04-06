@@ -25,7 +25,8 @@ def test_analysis_endpoint_success() -> None:
     assert response.status_code == 200
     data = response.json()
     assert data["metrics"]["gross_rent_annual_eur"] == 16200.0
-    assert "created_at" in data["meta"]
+    assert "gross_yield_on_purchase_price" in data["metrics"]
+    assert "risk_flags" in data
     assert set(data["scenarios"].keys()) == {"base", "optimistic", "prudent"}
 
 

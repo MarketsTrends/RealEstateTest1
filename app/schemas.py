@@ -34,7 +34,7 @@ class IncomeInput(BaseModel):
     vacancy_rate: float = Field(default=0.05, ge=0, le=1)
 
 
-class ExpensesInput(BaseModel):
+class OperatingExpensesInput(BaseModel):
     annual_operating_expenses_eur: float = Field(ge=0)
 
 
@@ -45,7 +45,7 @@ class FinancingInput(BaseModel):
     term_years: int = Field(ge=1, le=40)
 
 
-class ExitInput(BaseModel):
+class ExitAssumptionsInput(BaseModel):
     hold_years: int = Field(ge=1, le=40)
     appreciation_rate_annual: float = Field(ge=-0.5, le=0.5)
     sale_cost_rate: float = Field(default=0.06, ge=0, le=1)
@@ -86,23 +86,30 @@ class AnalysisRequest(BaseModel):
     property: PropertyInput
     acquisition: AcquisitionInput
     income: IncomeInput
-    expenses: ExpensesInput
+    expenses: OperatingExpensesInput
     financing: FinancingInput
-    exit: ExitInput
+    exit: ExitAssumptionsInput
     valuation: ValuationInput = Field(default_factory=ValuationInput)
     model: ModelInput = Field(default_factory=ModelInput)
 
 
-class MetaResponse(BaseModel):
-    engine_version: str
-    created_at: datetime
-    warnings: list[str]
+class RiskSeverity(str, Enum):
+    info = "info"
+    medium = "medium"
+    high = "high"
 
 
-class MetricsResponse(BaseModel):
+class RiskFlag(BaseModel):
+    code: str
+    severity: RiskSeverity
+    message: str
+
+
+class AnalysisMetrics(BaseModel):
     gross_rent_annual_eur: float
     effective_rent_annual_eur: float
     noi_annual_eur: float
+    gross_yield_on_purchase_price: float | None
     cap_rate_on_purchase_price: float | None
     cap_rate_on_total_cost: float | None
     loan_payment_monthly_eur: float
@@ -119,7 +126,7 @@ class MetricsResponse(BaseModel):
     irr_annual: float | None
 
 
-class ProFormaYear(BaseModel):
+class YearlyProjection(BaseModel):
     year: int
     gross_rent_annual_eur: float
     vacancy_loss_annual_eur: float
@@ -133,16 +140,23 @@ class ProFormaYear(BaseModel):
     equity_end_eur: float
 
 
-class ScenarioResponse(BaseModel):
+class ScenarioOutput(BaseModel):
     deltas: dict[str, float]
-    metrics: MetricsResponse
+    metrics: AnalysisMetrics
+
+
+class AnalysisMeta(BaseModel):
+    engine_version: str
+    created_at: datetime
+    warnings: list[str]
 
 
 class AnalysisResponse(BaseModel):
-    meta: MetaResponse
-    metrics: MetricsResponse
-    pro_forma_yearly: list[ProFormaYear]
-    scenarios: dict[str, ScenarioResponse]
+    meta: AnalysisMeta
+    metrics: AnalysisMetrics
+    risk_flags: list[RiskFlag]
+    pro_forma_yearly: list[YearlyProjection]
+    scenarios: dict[str, ScenarioOutput]
 
 
 class CompsQuery(BaseModel):
@@ -191,11 +205,12 @@ def round_ratio(value: float | None) -> float | None:
     return round(float(value), 6)
 
 
-def rounded_metrics(metrics: dict[str, Any]) -> MetricsResponse:
-    return MetricsResponse(
+def rounded_metrics(metrics: dict[str, Any]) -> AnalysisMetrics:
+    return AnalysisMetrics(
         gross_rent_annual_eur=round_money(metrics["gross_rent_annual_eur"]),
         effective_rent_annual_eur=round_money(metrics["effective_rent_annual_eur"]),
         noi_annual_eur=round_money(metrics["noi_annual_eur"]),
+        gross_yield_on_purchase_price=round_ratio(metrics["gross_yield_on_purchase_price"]),
         cap_rate_on_purchase_price=round_ratio(metrics["cap_rate_on_purchase_price"]),
         cap_rate_on_total_cost=round_ratio(metrics["cap_rate_on_total_cost"]),
         loan_payment_monthly_eur=round_money(metrics["loan_payment_monthly_eur"]),

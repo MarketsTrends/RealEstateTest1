@@ -1,133 +1,33 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import FastAPI, Query
 
 from app.db.comps_repo import fetch_sales_comps
 from app.db.conn import get_connection
 from app.engine import ENGINE_VERSION
-from app.engine.irr_npv import irr, npv
-from app.engine.loan import monthly_payment, remaining_balance
-from app.engine.metrics import (
-    break_even_occupancy,
-    cap_rate,
-    cash_on_cash,
-    dscr,
-    effective_rent_annual,
-    gross_rent_annual,
-    noi_annual,
-)
-from app.engine.proforma import build_pro_forma_yearly
+from app.engine.analysis import analyze_financials
+from app.engine.risk_flags import build_risk_flags
 from app.engine.scenarios import scenario_inputs
 from app.errors import add_exception_handlers
 from app.schemas import (
+    AnalysisMeta,
     AnalysisRequest,
     AnalysisResponse,
     CompRecord,
     CompsQuery,
     CompsResponse,
     CompsStats,
-    MetaResponse,
     PropertyType,
-    ProFormaYear,
-    ScenarioResponse,
+    ScenarioOutput,
+    YearlyProjection,
     rounded_metrics,
 )
 from app.settings import get_settings
 
 app = FastAPI(title="RealEstate MVP")
 add_exception_handlers(app)
-
-
-def compute_metrics(payload: AnalysisRequest) -> tuple[dict[str, Any], list[str], list[float], list[dict[str, Any]]]:
-    warnings: list[str] = []
-    acq = payload.acquisition
-    inc = payload.income
-    exp = payload.expenses
-    fin = payload.financing
-    exit_data = payload.exit
-
-    total_cost = acq.purchase_price_eur + acq.fees_and_works_eur
-    if abs((fin.loan_amount_eur + fin.down_payment_eur) - acq.purchase_price_eur) > 0.01:
-        warnings.append("loan_amount_eur + down_payment_eur differs from purchase_price_eur")
-
-    gross = gross_rent_annual(inc.monthly_rent_eur, inc.other_monthly_income_eur)
-    effective = effective_rent_annual(gross, inc.vacancy_rate)
-    noi = noi_annual(effective, exp.annual_operating_expenses_eur)
-
-    pmt = monthly_payment(fin.loan_amount_eur, fin.interest_rate_annual, fin.term_years)
-    annual_debt = pmt * 12
-    cashflow = noi - annual_debt
-
-    dscr_value = dscr(noi, annual_debt)
-    if dscr_value is None:
-        warnings.append("DSCR unavailable because annual debt service is zero")
-
-    break_even = break_even_occupancy(exp.annual_operating_expenses_eur, annual_debt, gross)
-    if break_even is None:
-        warnings.append("Break-even occupancy unavailable because gross rent is zero")
-
-    sale_price = acq.purchase_price_eur * ((1 + exit_data.appreciation_rate_annual) ** exit_data.hold_years)
-    months_paid = min(fin.term_years * 12, exit_data.hold_years * 12)
-    loan_balance = remaining_balance(
-        fin.loan_amount_eur,
-        fin.interest_rate_annual,
-        fin.term_years,
-        months_paid,
-        payment=pmt,
-    )
-    sale_net = sale_price * (1 - exit_data.sale_cost_rate)
-    sale_proceeds_net = sale_net - loan_balance
-
-    cash_invested = fin.down_payment_eur + acq.fees_and_works_eur
-    cocr = cash_on_cash(cashflow, cash_invested)
-
-    cashflows = [-cash_invested]
-    if exit_data.hold_years > 1:
-        cashflows.extend([cashflow] * (exit_data.hold_years - 1))
-    cashflows.append(cashflow + sale_proceeds_net)
-
-    irr_value = irr(cashflows)
-    if irr_value is None:
-        warnings.append("IRR unavailable for given cashflows")
-
-    npv_value = npv(payload.valuation.discount_rate_annual_for_npv, cashflows)
-
-    metrics = {
-        "gross_rent_annual_eur": gross,
-        "effective_rent_annual_eur": effective,
-        "noi_annual_eur": noi,
-        "cap_rate_on_purchase_price": cap_rate(noi, acq.purchase_price_eur),
-        "cap_rate_on_total_cost": cap_rate(noi, total_cost),
-        "loan_payment_monthly_eur": pmt,
-        "annual_debt_service_eur": annual_debt,
-        "cashflow_annual_eur": cashflow,
-        "cashflow_monthly_eur": cashflow / 12,
-        "cash_on_cash_return": cocr,
-        "dscr": dscr_value,
-        "break_even_occupancy": break_even,
-        "sale_price_year_n_eur": sale_price,
-        "loan_balance_end_of_hold_eur": loan_balance,
-        "sale_proceeds_net_eur": sale_proceeds_net,
-        "npv_eur": npv_value,
-        "irr_annual": irr_value,
-    }
-
-    pro_forma = build_pro_forma_yearly(
-        purchase_price=acq.purchase_price_eur,
-        appreciation_rate_annual=exit_data.appreciation_rate_annual,
-        monthly_rent=inc.monthly_rent_eur,
-        other_monthly_income=inc.other_monthly_income_eur,
-        vacancy_rate=inc.vacancy_rate,
-        annual_operating_expenses=exp.annual_operating_expenses_eur,
-        loan_amount=fin.loan_amount_eur,
-        interest_rate_annual=fin.interest_rate_annual,
-        term_years=fin.term_years,
-        hold_years=exit_data.hold_years,
-    )
-    return metrics, warnings, cashflows, pro_forma
 
 
 @app.get("/health")
@@ -143,23 +43,30 @@ def version() -> dict[str, str]:
 
 @app.post("/analysis", response_model=AnalysisResponse)
 def analysis(payload: AnalysisRequest) -> AnalysisResponse:
-    metrics_base, warnings, _cashflows, pro_forma = compute_metrics(payload)
+    base_metrics, warnings, _cashflows, yearly = analyze_financials(payload)
 
-    scenarios: dict[str, ScenarioResponse] = {}
+    risk_flags = build_risk_flags(
+        payload,
+        dscr_value=base_metrics["dscr"],
+        break_even_occupancy_value=base_metrics["break_even_occupancy"],
+    )
+
+    scenarios: dict[str, ScenarioOutput] = {}
     for name, (deltas, scenario_payload) in scenario_inputs(payload).items():
-        scen_metrics, _, _, _ = compute_metrics(scenario_payload)
-        scenarios[name] = ScenarioResponse(deltas=deltas, metrics=rounded_metrics(scen_metrics))
+        scenario_metrics, _, _, _ = analyze_financials(scenario_payload)
+        scenarios[name] = ScenarioOutput(deltas=deltas, metrics=rounded_metrics(scenario_metrics))
 
     return AnalysisResponse(
-        meta=MetaResponse(
+        meta=AnalysisMeta(
             engine_version=ENGINE_VERSION,
             created_at=datetime.now(timezone.utc),
             warnings=warnings,
         ),
-        metrics=rounded_metrics(metrics_base),
+        metrics=rounded_metrics(base_metrics),
+        risk_flags=risk_flags,
         pro_forma_yearly=[
-            ProFormaYear(**{k: round(v, 2) if isinstance(v, float) else v for k, v in row.items()})
-            for row in pro_forma
+            YearlyProjection(**{k: round(v, 2) if isinstance(v, float) else v for k, v in row.items()})
+            for row in yearly
         ],
         scenarios=scenarios,
     )
