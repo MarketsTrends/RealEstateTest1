@@ -12,10 +12,12 @@ def test_parse_row_uses_source_row_id_for_unique_record_id() -> None:
         "property_type": "Appartement",
     }
 
-    row1 = parse_row({**base, "source_row_id": "line-1"}, "sample.csv")
-    row2 = parse_row({**base, "source_row_id": "line-2"}, "sample.csv")
+    row1 = parse_row({**base, "source_row_id": "line-1"}, "dvf_2024.csv")
+    row2 = parse_row({**base, "source_row_id": "line-1"}, "dvf_2025.csv")
 
     assert row1 is not None
     assert row2 is not None
     assert row1.transaction_id == row2.transaction_id
+    assert row1.source == "dvf:dvf_2024.csv"
+    assert row2.source == "dvf:dvf_2025.csv"
     assert row1.record_id != row2.record_id

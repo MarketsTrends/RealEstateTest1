@@ -57,9 +57,10 @@ docker compose up -d
 - `transaction_id` est conservé comme champ métier/source (peut apparaître sur plusieurs lignes DVF).
 - La clé technique stockée est `record_id` (clé primaire).
 - Priorité d'identification:
-  1. `record_id = "<source>:<source_row_id>"` quand `source_row_id` existe
-  2. sinon hash stable des champs (`source|transaction_id|date|lat|lon|price`)
-- L'upsert de l'import est fait sur `record_id` pour préserver l'unicité au niveau ligne.
+  1. `source` est file-aware (`dvf:<nom_fichier_source>`)
+  2. `record_id = "<source>:<source_row_id>"` quand `source_row_id` existe
+  3. sinon hash stable des champs (`source|transaction_id|date|lat|lon|price`)
+- L'upsert de l'import est fait sur `record_id` pour préserver l'unicité au niveau ligne et par fichier source.
 
 Préparez un CSV local DVF-like contenant au minimum des colonnes compatibles avec:
 - transaction id (`transaction_id` ou `id_mutation`)

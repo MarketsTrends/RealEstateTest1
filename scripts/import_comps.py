@@ -90,7 +90,8 @@ def parse_row(record: dict[str, str], source_name: str) -> ImportRow | None:
     surface_raw = _pick(record, "surface_m2", "surface_reelle_bati")
     rooms_raw = _pick(record, "rooms", "nombre_pieces_principales")
 
-    source = "dvf"
+    normalized_source_name = os.path.basename(source_name).strip().lower() or "unknown-file"
+    source = f"dvf:{normalized_source_name}"
     return ImportRow(
         record_id=_record_id(
             source=source,
