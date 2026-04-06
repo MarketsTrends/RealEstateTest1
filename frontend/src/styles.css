@@ -42,6 +42,11 @@ body {
   font-size: 14px;
 }
 
+.button-link-disabled {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -192,6 +197,23 @@ th, td {
   margin-top: 8px;
 }
 
+.compare-toolbar {
+  margin: 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.compare-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 8px;
+  font-size: 12px;
+  color: #374151;
+}
+
 .recent-list {
   list-style: none;
   padding: 0;
@@ -208,6 +230,13 @@ th, td {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.recent-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .recent-badges {
@@ -280,6 +309,49 @@ th, td {
   color: #4b5563;
 }
 
+.compare-chip-row {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.compare-chip {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.compare-grid-header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.compare-deal-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.compare-table-wrap {
+  overflow-x: auto;
+}
+
+.compare-table th:first-child,
+.compare-table td:first-child {
+  font-weight: 600;
+  background: #f9fafb;
+}
+
+.compare-best {
+  background: #f0fdf4;
+}
+
+.compare-worst {
+  background: #fffbeb;
+}
+
 @media (max-width: 1000px) {
   .layout {
     grid-template-columns: 1fr;
@@ -297,7 +369,8 @@ th, td {
 
   .snapshot-hero-top,
   .recent-item,
-  .share-actions {
+  .share-actions,
+  .compare-toolbar {
     flex-direction: column;
     align-items: flex-start;
   }

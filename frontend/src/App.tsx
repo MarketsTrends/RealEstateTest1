@@ -76,9 +76,27 @@ function parseSnapshotIdFromPath(pathname: string): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
-export default function App(): JSX.Element {
-  const snapshotIdFromPath = parseSnapshotIdFromPath(window.location.pathname)
+function parseCompareIds(pathname: string, search: string): string[] | null {
+  if (pathname !== '/compare') return null
+  const raw = new URLSearchParams(search).get('ids')
+  if (!raw) return []
+  return raw
+    .split(',')
+    .map((id) => id.trim())
+    .filter(Boolean)
+}
 
+function buildCompareUrl(ids: string[]): string {
+  return `/compare?ids=${ids.join(',')}`
+}
+
+export default function App(): JSX.Element {
+  const compareIds = parseCompareIds(window.location.pathname, window.location.search)
+  if (compareIds !== null) {
+    return <ComparePage ids={compareIds} />
+  }
+
+  const snapshotIdFromPath = parseSnapshotIdFromPath(window.location.pathname)
   if (snapshotIdFromPath) {
     return <SavedSnapshotPage snapshotId={snapshotIdFromPath} />
   }
@@ -108,6 +126,7 @@ function LiveAnalysisPage(): JSX.Element {
   const [recentSnapshots, setRecentSnapshots] = useState<SnapshotSummary[]>([])
   const [dirty, setDirty] = useState(false)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle')
+  const [selectedCompareIds, setSelectedCompareIds] = useState<string[]>([])
 
   const assumptions = useMemo(
     () => [
@@ -121,8 +140,10 @@ function LiveAnalysisPage(): JSX.Element {
     try {
       const data = await getRecentAnalyses(10)
       setRecentSnapshots(data)
+      setSelectedCompareIds((prev) => prev.filter((id) => data.some((s) => s.id === id)))
     } catch {
       setRecentSnapshots([])
+      setSelectedCompareIds([])
     }
   }
 
@@ -142,6 +163,15 @@ function LiveAnalysisPage(): JSX.Element {
     setCompsError(null)
     setMemoError(null)
     setSaveError(null)
+  }
+
+  const toggleCompare = (snapshotId: string): void => {
+    setSelectedCompareIds((prev) => {
+      if (prev.includes(snapshotId)) {
+        return prev.filter((id) => id !== snapshotId)
+      }
+      return [...prev, snapshotId]
+    })
   }
 
   const submit = async (): Promise<void> => {
@@ -237,6 +267,7 @@ function LiveAnalysisPage(): JSX.Element {
   }
 
   const shareLink = savedSnapshot ? `${window.location.origin}/analysis/${savedSnapshot.id}` : null
+  const compareDisabled = selectedCompareIds.length < 2 || selectedCompareIds.length > 4
 
   return (
     <main className="container">
@@ -307,13 +338,34 @@ function LiveAnalysisPage(): JSX.Element {
           <h2>Recent analyses</h2>
           <Badge label="Newest first" />
         </div>
+
+        <div className="compare-toolbar">
+          <span className="muted">Compare selection: {selectedCompareIds.length}/4</span>
+          <div className="share-actions">
+            <a className={`button-link ${compareDisabled ? 'button-link-disabled' : ''}`} href={buildCompareUrl(selectedCompareIds)}>
+              Compare selected
+            </a>
+            <button type="button" onClick={() => setSelectedCompareIds([])} disabled={selectedCompareIds.length === 0}>Clear</button>
+          </div>
+        </div>
+        {selectedCompareIds.length > 4 && <p className="error-inline">Select at most 4 deals for comparison.</p>}
+
         {recentSnapshots.length === 0 ? (
           <p>No saved analyses yet.</p>
         ) : (
           <ul className="recent-list">
             {recentSnapshots.map((item) => (
               <li key={item.id} className="recent-item">
-                <div>
+                <div className="recent-main">
+                  <label className="compare-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={selectedCompareIds.includes(item.id)}
+                      onChange={() => toggleCompare(item.id)}
+                      disabled={!selectedCompareIds.includes(item.id) && selectedCompareIds.length >= 4}
+                    />
+                    Compare
+                  </label>
                   <a href={`/analysis/${item.id}`}><strong>{item.title}</strong></a>
                   <p className="muted">{item.address_label ?? 'No address'} · {new Date(item.created_at).toLocaleString()}</p>
                 </div>
@@ -389,16 +441,19 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
             </div>
             <p className="subtitle">{snapshot.address_label ?? 'No address label'}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              if (!navigator.clipboard) return
-              void navigator.clipboard.writeText(shareLink)
-              setCopyStatus('copied')
-            }}
-          >
-            {copyStatus === 'copied' ? 'Link copied' : 'Copy link'}
-          </button>
+          <div className="share-actions">
+            <button
+              type="button"
+              onClick={() => {
+                if (!navigator.clipboard) return
+                void navigator.clipboard.writeText(shareLink)
+                setCopyStatus('copied')
+              }}
+            >
+              {copyStatus === 'copied' ? 'Link copied' : 'Copy link'}
+            </button>
+            <a className="button-link" href={buildCompareUrl([snapshot.id])}>Open in compare</a>
+          </div>
         </div>
 
         <div className="snapshot-meta-grid">
@@ -434,6 +489,188 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
         </p>
         <p className="muted">This page reflects a saved point-in-time analysis snapshot.</p>
       </footer>
+    </main>
+  )
+}
+
+type MetricRule = {
+  key: string
+  label: string
+  prefer: 'high' | 'low'
+  format: (value: number | null | undefined) => string
+  get: (snapshot: SnapshotResponse) => number | null | undefined
+}
+
+const metricRules: MetricRule[] = [
+  { key: 'noi', label: 'NOI', prefer: 'high', format: money, get: (s) => s.analysis.metrics.noi_annual_eur },
+  { key: 'cashflow_year', label: 'Annual cash flow', prefer: 'high', format: money, get: (s) => s.analysis.metrics.cashflow_annual_eur },
+  { key: 'cashflow_month', label: 'Monthly cash flow', prefer: 'high', format: money, get: (s) => s.analysis.metrics.cashflow_monthly_eur },
+  { key: 'irr', label: 'IRR', prefer: 'high', format: ratio, get: (s) => s.analysis.metrics.irr_annual },
+  { key: 'npv', label: 'NPV', prefer: 'high', format: money, get: (s) => s.analysis.metrics.npv_eur },
+  { key: 'cap_rate', label: 'Cap rate', prefer: 'high', format: ratio, get: (s) => s.analysis.metrics.cap_rate_on_purchase_price },
+  { key: 'coc', label: 'Cash-on-cash', prefer: 'high', format: ratio, get: (s) => s.analysis.metrics.cash_on_cash_return },
+  {
+    key: 'dscr',
+    label: 'DSCR',
+    prefer: 'high',
+    format: (v) => (v === null || v === undefined ? '—' : v.toFixed(2)),
+    get: (s) => s.analysis.metrics.dscr
+  },
+  { key: 'be_occ', label: 'Break-even occupancy', prefer: 'low', format: ratio, get: (s) => s.analysis.metrics.break_even_occupancy }
+]
+
+function ComparePage({ ids }: { ids: string[] }): JSX.Element {
+  const [snapshots, setSnapshots] = useState<SnapshotResponse[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (ids.length < 2 || ids.length > 4) return
+
+    const load = async (): Promise<void> => {
+      try {
+        setLoading(true)
+        setError(null)
+        const data = await Promise.all(ids.map((id) => getAnalysisSnapshot(id)))
+        setSnapshots(data)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load snapshots for compare'
+        setError(message)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    void load()
+  }, [ids])
+
+  if (ids.length < 2) {
+    return <main className="container"><section className="panel"><h1>Compare deals</h1><p>Select at least 2 snapshots from recent analyses.</p><p><a href="/">Back to analyses</a></p></section></main>
+  }
+
+  if (ids.length > 4) {
+    return <main className="container"><section className="panel"><h1>Compare deals</h1><p>You can compare at most 4 snapshots at once.</p><p><a href="/">Back to analyses</a></p></section></main>
+  }
+
+  if (loading) {
+    return <main className="container"><p>Loading comparison…</p></main>
+  }
+
+  if (error) {
+    return <main className="container"><div className="error">{error}</div></main>
+  }
+
+  return (
+    <main className="container">
+      <p><a href="/">← Back to analyses</a></p>
+      <section className="panel">
+        <div className="panel-header">
+          <h1>Compare deals</h1>
+          <Badge label={`${snapshots.length} selected`} tone="info" />
+        </div>
+        <p className="muted">Comparison uses saved snapshot data only (no recalculation).</p>
+        <div className="compare-chip-row">
+          {snapshots.map((s) => {
+            const remaining = snapshots.filter((x) => x.id !== s.id).map((x) => x.id)
+            return (
+              <div key={s.id} className="compare-chip">
+                <strong>{s.title}</strong>
+                <p className="muted">{new Date(s.created_at).toLocaleDateString()}</p>
+                <a href={buildCompareUrl(remaining)}>Remove</a>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      <section className="panel compare-grid-header">
+        {snapshots.map((s) => (
+          <div key={s.id} className="compare-deal-card">
+            <h3>{s.title}</h3>
+            <p className="muted">{s.address_label ?? 'No address label'}</p>
+            <p className="muted">{s.request.property.property_type} · {s.request.property.surface_m2 ?? '—'} m² · DPE {s.request.property.dpe_class ?? '—'}</p>
+            <div className="recent-badges">
+              {s.investment_view ? <Badge label={s.investment_view} tone="good" /> : <Badge label="no memo view" />}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section className="panel">
+        <h2>Core metrics</h2>
+        <div className="compare-table-wrap">
+          <table className="compare-table">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                {snapshots.map((s) => <th key={s.id}>{s.title}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {metricRules.map((rule) => {
+                const values = snapshots.map((s) => rule.get(s))
+                const numericValues = values.filter((v): v is number => typeof v === 'number')
+                const best = numericValues.length > 0 ? (rule.prefer === 'high' ? Math.max(...numericValues) : Math.min(...numericValues)) : null
+                const worst = numericValues.length > 0 ? (rule.prefer === 'high' ? Math.min(...numericValues) : Math.max(...numericValues)) : null
+
+                return (
+                  <tr key={rule.key}>
+                    <td>{rule.label}</td>
+                    {values.map((value, idx) => {
+                      const isBest = typeof value === 'number' && best !== null && value === best && best !== worst
+                      const isWorst = typeof value === 'number' && worst !== null && value === worst && best !== worst
+                      return (
+                        <td key={`${rule.key}-${snapshots[idx].id}`} className={isBest ? 'compare-best' : isWorst ? 'compare-worst' : ''}>
+                          {rule.format(value)}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="muted">Highlighting is metric-level only (green = relatively stronger direction for that metric, amber = relatively weaker).</p>
+      </section>
+
+      <section className="panel compare-grid-header">
+        {snapshots.map((s) => (
+          <div key={`${s.id}-risks`} className="compare-deal-card">
+            <h3>Risk & memo — {s.title}</h3>
+            <h4>Risk flags</h4>
+            {s.analysis.risk_flags.length === 0 ? <p className="muted">No risk flags.</p> : (
+              <ul>
+                {s.analysis.risk_flags.slice(0, 3).map((r) => <li key={r.code}>{r.severity}: {r.message}</li>)}
+              </ul>
+            )}
+            <h4>Memo highlights</h4>
+            {s.memo ? (
+              <>
+                <p><strong>View:</strong> {s.memo.investment_view}</p>
+                <ul>
+                  {s.memo.key_risks.slice(0, 2).map((r) => <li key={r}>{r}</li>)}
+                </ul>
+              </>
+            ) : <p className="muted">No memo saved.</p>}
+          </div>
+        ))}
+      </section>
+
+      <section className="panel compare-grid-header">
+        {snapshots.map((s) => (
+          <div key={`${s.id}-comps`} className="compare-deal-card">
+            <h3>Comps — {s.title}</h3>
+            {s.comps ? (
+              <ul>
+                <li>Count: {s.comps.stats.n}</li>
+                <li>Median €/m²: {money(s.comps.stats.median_price_per_sqm_eur)}</li>
+                <li>Quartile range: {money(s.comps.stats.p25_price_per_sqm_eur)} – {money(s.comps.stats.p75_price_per_sqm_eur)}</li>
+              </ul>
+            ) : <p className="muted">No comps snapshot saved.</p>}
+          </div>
+        ))}
+      </section>
     </main>
   )
 }
