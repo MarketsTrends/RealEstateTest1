@@ -27,24 +27,48 @@ cp .env.example .env
 npm install
 ```
 
+## Scope comps MVP (3B)
+
+- **Zone couverte**: Paris (scope limité volontaire)
+- **Source visée**: fichier local DVF / DVF-like CSV
+- **Objectif**: rendre `/comps/sales` utile en local pour une zone restreinte, sans pipeline national.
+
 ## Structure
 
-- `app/main.py`: création FastAPI minimale + registration des routers.
-- `app/api/analysis.py`: endpoint `POST /analysis`.
-- `app/api/comps.py`: endpoint `GET /comps/sales`.
 - `app/api/reports.py`: endpoint `POST /report/pdf`.
-- `app/services/analysis_service.py`: orchestration de la réponse d'analyse.
-- `app/services/comps_service.py`: orchestration comps + fallback DB.
-- `app/services/report_service.py`: rendu HTML + conversion PDF WeasyPrint.
-- `app/templates/report.html`: template rapport PDF.
-- `app/static/report.css`: style print du rapport.
-- `frontend/`: application React + Vite TypeScript, page unique Deal Analysis.
+- `app/db/comps_repo.py`: requêtes PostGIS comps + stats.
+- `app/services/comps_service.py`: fallback propre si DB indisponible.
+- `db/init/001_sales_transactions.sql`: schéma + indexes table comps.
+- `scripts/import_comps.py`: import CSV DVF-like filtré Paris.
+- `frontend/`: application React + Vite TypeScript, section comps simple.
 
 ## Lancer la base Postgres/PostGIS
 
 ```bash
 docker compose up -d
 ```
+
+> Le dossier `db/init/` est monté automatiquement pour créer la table `sales_transactions` et ses index.
+
+## Importer des comps (Paris)
+
+Préparez un CSV local DVF-like contenant au minimum des colonnes compatibles avec:
+- transaction id (`transaction_id` ou `id_mutation`)
+- date (`sold_at` ou `date_mutation`)
+- prix (`price_eur` ou `valeur_fonciere`)
+- latitude/longitude (`lat`/`lon` ou `latitude`/`longitude`)
+- code postal (`postal_code` ou `code_postal`)
+
+Puis lancez:
+
+```bash
+python scripts/import_comps.py --csv /path/to/dvf_like.csv --database-url "$DATABASE_URL" --truncate
+```
+
+Le script:
+- normalise les champs,
+- filtre Paris,
+- upsert dans `sales_transactions`.
 
 ## Lancer backend + frontend
 
@@ -65,8 +89,6 @@ Frontend sur `http://localhost:5173`, API sur `http://localhost:8000`.
 
 ## API base URL frontend
 
-Configurer via:
-
 ```bash
 VITE_API_BASE_URL=http://localhost:8000
 ```
@@ -78,51 +100,30 @@ VITE_API_BASE_URL=http://localhost:8000
 - Output: `application/pdf`
 - Nom suggéré: `deal-analysis-report.pdf`
 
-Le rapport PDF est généré côté backend de façon déterministe à partir de la sortie d'analyse existante (pas de données inventées, pas de charts artificiels).
+## Frontend comps behavior
 
-## Validation financière
+- Ajoutez manuellement `lat/lon` dans le formulaire.
+- Après analyse, le frontend appelle `/comps/sales` et affiche:
+  - disponibilité,
+  - médiane €/m²,
+  - nombre de comps,
+  - intervalle quartiles (p25/p75),
+  - tableau réduit de transactions comparables.
 
-`POST /analysis` applique une validation stricte:
-
-- `loan_amount_eur + down_payment_eur == purchase_price_eur` (tolérance 0.01)
-- sinon: erreur de validation HTTP 422 avec message explicite.
-
-## DPE (optionnel)
-
-`property.dpe_class` est optionnel et accepte `A|B|C|D|E|F|G`.
-
-Flags risques DPE:
-
-- `G` -> `DPE_G_REGULATORY_RISK` (high)
-- `F` -> `DPE_F_REGULATORY_RISK` (medium)
-
-## Scénarios
-
-- `base`
-- `optimistic`
-- `prudent`
-
-Les scénarios appliquent des deltas lisibles sur loyer, vacance, taux, appréciation,
-**et désormais dépenses d'exploitation** (+ stress de sale cost).
+Si `lat/lon` absents ou DB indisponible, une section placeholder/warning est affichée.
 
 ## Hypothèses MVP
 
 - Calculs pré-tax uniquement.
 - Projections annuelles avec hypothèses plates (loyer, vacance, OPEX constants au sein d'un scénario).
 - Pas d'inflation détaillée, pas de fiscalité, pas de capex récurrent modélisé.
-- Le PDF n'intègre pas les comps ni de visualisations avancées.
+- PDF: pas de comps ni visualisations avancées.
+- Comps: pas de couverture nationale, uniquement Paris dans cette étape.
 
 ## Exécuter les tests
 
 ```bash
 pytest
-```
-
-## Lint/type checks
-
-```bash
-ruff check .
-mypy app
 ```
 
 ## Notes

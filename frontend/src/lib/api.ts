@@ -1,4 +1,4 @@
-import type { AnalysisRequest, AnalysisResponse, ApiError } from './types'
+import type { AnalysisRequest, AnalysisResponse, ApiError, CompsResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -46,4 +46,36 @@ export async function downloadPdfReport(payload: AnalysisRequest): Promise<void>
   anchor.click()
   anchor.remove()
   URL.revokeObjectURL(url)
+}
+
+export async function getCompsSales(params: {
+  lat: number
+  lon: number
+  radius_m?: number
+  months_back?: number
+  property_type?: string
+  surface_m2?: number
+  surface_tolerance_pct?: number
+}): Promise<CompsResponse> {
+  const query = new URLSearchParams({
+    lat: String(params.lat),
+    lon: String(params.lon),
+    radius_m: String(params.radius_m ?? 1000),
+    months_back: String(params.months_back ?? 24),
+    property_type: params.property_type ?? 'unknown'
+  })
+
+  if (params.surface_m2 !== undefined) {
+    query.set('surface_m2', String(params.surface_m2))
+  }
+  if (params.surface_tolerance_pct !== undefined) {
+    query.set('surface_tolerance_pct', String(params.surface_tolerance_pct))
+  }
+
+  const response = await fetch(`${API_BASE_URL}/comps/sales?${query.toString()}`)
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as ApiError
+    throw parseApiError(errorBody, response.status)
+  }
+  return (await response.json()) as CompsResponse
 }

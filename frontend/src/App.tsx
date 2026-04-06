@@ -1,14 +1,17 @@
 import { useMemo, useState } from 'react'
 
+import { CompsSection } from './components/CompsSection'
 import { DealForm } from './components/DealForm'
 import { ResultsView } from './components/ResultsView'
-import { downloadPdfReport, postAnalysis } from './lib/api'
-import type { AnalysisRequest, AnalysisResponse } from './lib/types'
+import { downloadPdfReport, getCompsSales, postAnalysis } from './lib/api'
+import type { AnalysisRequest, AnalysisResponse, CompsResponse } from './lib/types'
 
 const sampleDeal: AnalysisRequest = {
   property: {
     property_type: 'apartment',
-    address: 'Sample address',
+    address: 'Paris 11e',
+    lat: 48.8592,
+    lon: 2.3784,
     surface_m2: 52,
     country_code: 'FR',
     dpe_class: 'D'
@@ -49,9 +52,12 @@ const sampleDeal: AnalysisRequest = {
 export default function App(): JSX.Element {
   const [form, setForm] = useState<AnalysisRequest>(sampleDeal)
   const [result, setResult] = useState<AnalysisResponse | null>(null)
+  const [comps, setComps] = useState<CompsResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [compsLoading, setCompsLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [compsError, setCompsError] = useState<string | null>(null)
 
   const assumptions = useMemo(
     () => [
@@ -65,13 +71,36 @@ export default function App(): JSX.Element {
     try {
       setLoading(true)
       setError(null)
+      setCompsError(null)
+
       const data = await postAnalysis(form)
       setResult(data)
+
+      if (form.property.lat !== null && form.property.lon !== null) {
+        setCompsLoading(true)
+        try {
+          const compsData = await getCompsSales({
+            lat: form.property.lat,
+            lon: form.property.lon,
+            property_type: form.property.property_type,
+            surface_m2: form.property.surface_m2 ?? undefined
+          })
+          setComps(compsData)
+          setCompsError(null)
+        } catch (err) {
+          const compsMessage = err instanceof Error ? err.message : 'Comps error'
+          setCompsError(compsMessage)
+          setComps(null)
+        }
+      } else {
+        setComps(null)
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       setError(message)
     } finally {
       setLoading(false)
+      setCompsLoading(false)
     }
   }
 
@@ -103,6 +132,13 @@ export default function App(): JSX.Element {
         <DealForm form={form} onChange={setForm} onSubmit={submit} loading={loading} onLoadSample={() => setForm(sampleDeal)} />
         <ResultsView result={result} />
       </div>
+
+      <CompsSection
+        comps={comps}
+        loading={compsLoading}
+        error={compsError}
+        hasCoordinates={form.property.lat !== null && form.property.lon !== null}
+      />
 
       {error && <div className="error">{error}</div>}
 

@@ -27,7 +27,7 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
       target[key] = value ? (value as DPEClass) : null
     } else if (key === 'country_code') {
       target[key] = value
-    } else if (key === 'surface_m2') {
+    } else if (key === 'surface_m2' || key === 'lat' || key === 'lon') {
       target[key] = value.trim() ? num(value) : null
     } else {
       target[key] = num(value)
@@ -58,6 +58,14 @@ export function DealForm({ form, loading, onChange, onSubmit, onLoadSample }: Pr
 
         <label>Surface m² (optional)
           <input type="number" value={form.property.surface_m2 ?? ''} onChange={(e) => update('property.surface_m2', e.target.value)} />
+        </label>
+
+        <label>Latitude (optional)
+          <input type="number" step="0.000001" value={form.property.lat ?? ''} onChange={(e) => update('property.lat', e.target.value)} />
+        </label>
+
+        <label>Longitude (optional)
+          <input type="number" step="0.000001" value={form.property.lon ?? ''} onChange={(e) => update('property.lon', e.target.value)} />
         </label>
 
         <label>DPE class (optional)

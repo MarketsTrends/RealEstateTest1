@@ -5,6 +5,29 @@ from typing import Any
 from app.schemas import PropertyType
 
 
+def build_comps_filters(
+    *,
+    property_type: PropertyType,
+    surface_m2: float | None,
+    surface_tolerance_pct: float,
+) -> tuple[str, dict[str, Any]]:
+    filters = ""
+    params: dict[str, Any] = {}
+
+    if property_type != PropertyType.unknown:
+        filters += " AND property_type = %(property_type)s"
+        params["property_type"] = property_type.value
+
+    if surface_m2 is not None:
+        min_s = surface_m2 * (1 - surface_tolerance_pct)
+        max_s = surface_m2 * (1 + surface_tolerance_pct)
+        filters += " AND surface_m2 BETWEEN %(surface_min)s AND %(surface_max)s"
+        params["surface_min"] = min_s
+        params["surface_max"] = max_s
+
+    return filters, params
+
+
 def fetch_sales_comps(
     conn: Any,
     *,
@@ -16,22 +39,18 @@ def fetch_sales_comps(
     surface_m2: float | None,
     surface_tolerance_pct: float,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    filters = ""
+    filters, dynamic_params = build_comps_filters(
+        property_type=property_type,
+        surface_m2=surface_m2,
+        surface_tolerance_pct=surface_tolerance_pct,
+    )
     params: dict[str, Any] = {
         "lat": lat,
         "lon": lon,
         "radius_m": radius_m,
         "months_back": months_back,
+        **dynamic_params,
     }
-    if property_type != PropertyType.unknown:
-        filters += " AND property_type = %(property_type)s"
-        params["property_type"] = property_type.value
-    if surface_m2 is not None:
-        min_s = surface_m2 * (1 - surface_tolerance_pct)
-        max_s = surface_m2 * (1 + surface_tolerance_pct)
-        filters += " AND surface_m2 BETWEEN %(surface_min)s AND %(surface_max)s"
-        params["surface_min"] = min_s
-        params["surface_max"] = max_s
 
     sql = f"""
     WITH base AS (

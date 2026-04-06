@@ -134,3 +134,7 @@ th, td {
     grid-template-columns: 1fr;
   }
 }
+
+.error-inline {
+  color: #b91c1c;
+}

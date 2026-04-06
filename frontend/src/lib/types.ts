@@ -5,6 +5,8 @@ export interface AnalysisRequest {
   property: {
     property_type: PropertyType
     address: string | null
+    lat: number | null
+    lon: number | null
     surface_m2: number | null
     country_code: string
     dpe_class: DPEClass | null
@@ -84,6 +86,34 @@ export interface AnalysisResponse {
       metrics: AnalysisResponse['metrics']
     }
   >
+}
+
+export interface CompsResponse {
+  available: boolean
+  warnings: string[]
+  query: {
+    lat: number
+    lon: number
+    radius_m: number
+    months_back: number
+  }
+  stats: {
+    n: number
+    median_price_per_sqm_eur: number | null
+    p25_price_per_sqm_eur: number | null
+    p75_price_per_sqm_eur: number | null
+    median_price_eur: number | null
+    median_surface_m2: number | null
+  }
+  comps: Array<{
+    transaction_id: string
+    sold_at: string
+    price_eur: number
+    surface_m2: number | null
+    rooms: number | null
+    property_type: PropertyType
+    distance_m: number
+  }>
 }
 
 export interface ApiError {
