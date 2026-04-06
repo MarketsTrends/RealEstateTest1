@@ -1,4 +1,4 @@
-import type { AnalysisRequest, AnalysisResponse, ApiError, CompsResponse } from './types'
+import type { AnalysisRequest, AnalysisResponse, ApiError, CompsResponse, MemoResponse } from './types'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -78,4 +78,20 @@ export async function getCompsSales(params: {
     throw parseApiError(errorBody, response.status)
   }
   return (await response.json()) as CompsResponse
+}
+
+
+export async function postMemo(payload: AnalysisRequest): Promise<MemoResponse> {
+  const response = await fetch(`${API_BASE_URL}/memo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+
+  if (!response.ok) {
+    const errorBody = (await response.json().catch(() => ({}))) as ApiError
+    throw parseApiError(errorBody, response.status)
+  }
+
+  return (await response.json()) as MemoResponse
 }

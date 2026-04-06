@@ -119,3 +119,14 @@ export interface CompsResponse {
 export interface ApiError {
   detail?: string | Array<{ msg?: string }>
 }
+
+
+export interface MemoResponse {
+  summary: string
+  investment_view: 'strong' | 'balanced' | 'cautious' | 'weak'
+  key_strengths: string[]
+  key_risks: string[]
+  sensitivity_points: string[]
+  next_checks: string[]
+  disclaimer: string
+}

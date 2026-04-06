@@ -180,6 +180,25 @@ class AnalysisResponse(BaseModel):
     scenarios: dict[str, ScenarioOutput]
 
 
+
+
+class InvestmentView(str, Enum):
+    strong = "strong"
+    balanced = "balanced"
+    cautious = "cautious"
+    weak = "weak"
+
+
+class MemoResponse(BaseModel):
+    summary: str
+    investment_view: InvestmentView
+    key_strengths: list[str]
+    key_risks: list[str]
+    sensitivity_points: list[str]
+    next_checks: list[str]
+    disclaimer: str
+
+
 class CompsQuery(BaseModel):
     lat: float
     lon: float

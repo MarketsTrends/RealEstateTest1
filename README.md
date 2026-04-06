@@ -17,6 +17,9 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -e .[dev]
 cp .env.example .env
+# optional AI memo
+# export OPENAI_API_KEY=...
+# export OPENAI_MODEL=gpt-4.1-mini
 ```
 
 ## Installation frontend
@@ -103,6 +106,24 @@ Frontend sur `http://localhost:5173`, API sur `http://localhost:8000`.
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
+## AI Investment Memo
+
+- Endpoint: `POST /memo`
+- Input: même payload que `/analysis`
+- Output: JSON structuré:
+  - `summary`
+  - `investment_view` (`strong|balanced|cautious|weak`)
+  - `key_strengths[]`
+  - `key_risks[]`
+  - `sensitivity_points[]`
+  - `next_checks[]`
+  - `disclaimer`
+
+Règle produit: l'IA n'effectue **aucun calcul**.
+Tous les nombres viennent strictement de la sortie déterministe backend.
+
+Si `OPENAI_API_KEY` est absent: `/memo` renvoie `503` avec un message explicite.
+
 ## Export PDF
 
 - Endpoint: `POST /report/pdf`
@@ -128,6 +149,7 @@ Si `lat/lon` absents ou DB indisponible, une section placeholder/warning est aff
 - Projections annuelles avec hypothèses plates (loyer, vacance, OPEX constants au sein d'un scénario).
 - Pas d'inflation détaillée, pas de fiscalité, pas de capex récurrent modélisé.
 - PDF: pas de comps ni visualisations avancées.
+- Memo IA: synthèse explicative uniquement, pas de recalcul, pas de promesse de performance.
 - Comps: pas de couverture nationale, uniquement Paris dans cette étape.
 
 ## Exécuter les tests

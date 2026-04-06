@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react'
 
 import { CompsSection } from './components/CompsSection'
 import { DealForm } from './components/DealForm'
+import { MemoSection } from './components/MemoSection'
 import { ResultsView } from './components/ResultsView'
-import { downloadPdfReport, getCompsSales, postAnalysis } from './lib/api'
-import type { AnalysisRequest, AnalysisResponse, CompsResponse } from './lib/types'
+import { downloadPdfReport, getCompsSales, postAnalysis, postMemo } from './lib/api'
+import type { AnalysisRequest, AnalysisResponse, CompsResponse, MemoResponse } from './lib/types'
 
 const sampleDeal: AnalysisRequest = {
   property: {
@@ -53,11 +54,14 @@ export default function App(): JSX.Element {
   const [form, setForm] = useState<AnalysisRequest>(sampleDeal)
   const [result, setResult] = useState<AnalysisResponse | null>(null)
   const [comps, setComps] = useState<CompsResponse | null>(null)
+  const [memo, setMemo] = useState<MemoResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [compsLoading, setCompsLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [memoLoading, setMemoLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [compsError, setCompsError] = useState<string | null>(null)
+  const [memoError, setMemoError] = useState<string | null>(null)
 
   const assumptions = useMemo(
     () => [
@@ -117,6 +121,21 @@ export default function App(): JSX.Element {
     }
   }
 
+  const generateMemo = async (): Promise<void> => {
+    try {
+      setMemoLoading(true)
+      setMemoError(null)
+      const data = await postMemo(form)
+      setMemo(data)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      setMemoError(message)
+      setMemo(null)
+    } finally {
+      setMemoLoading(false)
+    }
+  }
+
   return (
     <main className="container">
       <h1>Deal Analysis</h1>
@@ -126,12 +145,17 @@ export default function App(): JSX.Element {
         <button type="button" onClick={exportPdf} disabled={exporting}>
           {exporting ? 'Exporting PDF…' : 'Export PDF'}
         </button>
+        <button type="button" onClick={generateMemo} disabled={memoLoading}>
+          {memoLoading ? 'Generating memo…' : 'Generate memo'}
+        </button>
       </div>
 
       <div className="layout">
         <DealForm form={form} onChange={setForm} onSubmit={submit} loading={loading} onLoadSample={() => setForm(sampleDeal)} />
         <ResultsView result={result} />
       </div>
+
+      <MemoSection memo={memo} loading={memoLoading} error={memoError} />
 
       <CompsSection
         comps={comps}
