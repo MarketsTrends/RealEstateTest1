@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { CompsSection } from './components/CompsSection'
 import { DealForm } from './components/DealForm'
@@ -104,6 +104,12 @@ function investmentTone(view: SnapshotSummary['investment_view'] | MemoResponse[
   return 'neutral'
 }
 
+function humanizePropertyType(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+type WorkspaceTab = 'overview' | 'memo' | 'comps' | 'library'
+
 export default function App(): JSX.Element {
   const compareIds = parseCompareIds(window.location.pathname, window.location.search)
   if (compareIds !== null) {
@@ -138,25 +144,22 @@ function LiveAnalysisPage(): JSX.Element {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedSnapshot, setSavedSnapshot] = useState<SnapshotSummary | null>(null)
   const [recentSnapshots, setRecentSnapshots] = useState<SnapshotSummary[]>([])
+  const [recentError, setRecentError] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied'>('idle')
   const [selectedCompareIds, setSelectedCompareIds] = useState<string[]>([])
-
-  const assumptions = useMemo(
-    () => [
-      'Analysis is pre-tax.',
-      'Yearly projections assume flat operating assumptions unless scenarios adjust inputs.'
-    ],
-    []
-  )
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>('overview')
 
   const refreshRecent = async (): Promise<void> => {
     try {
       const data = await getRecentAnalyses(10)
       setRecentSnapshots(data)
+      setRecentError(null)
       setSelectedCompareIds((prev) => prev.filter((id) => data.some((s) => s.id === id)))
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Recent analyses unavailable'
       setRecentSnapshots([])
+      setRecentError(message)
       setSelectedCompareIds([])
     }
   }
@@ -177,6 +180,7 @@ function LiveAnalysisPage(): JSX.Element {
     setCompsError(null)
     setMemoError(null)
     setSaveError(null)
+    setActiveTab('overview')
   }
 
   const toggleCompare = (snapshotId: string): void => {
@@ -198,6 +202,7 @@ function LiveAnalysisPage(): JSX.Element {
       setSavedSnapshot(null)
       setCopyStatus('idle')
       setSaveError(null)
+      setActiveTab('overview')
 
       const data = await postAnalysis(form)
       setResult(data)
@@ -225,6 +230,7 @@ function LiveAnalysisPage(): JSX.Element {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       setError(message)
+      setResult(null)
     } finally {
       setLoading(false)
       setCompsLoading(false)
@@ -248,6 +254,7 @@ function LiveAnalysisPage(): JSX.Element {
     try {
       setMemoLoading(true)
       setMemoError(null)
+      setActiveTab('memo')
       const data = await postMemo(form)
       setMemo(data)
     } catch (err) {
@@ -271,6 +278,7 @@ function LiveAnalysisPage(): JSX.Element {
       })
       setSavedSnapshot(data)
       await refreshRecent()
+      setActiveTab('library')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error'
       setSaveError(message)
@@ -282,48 +290,63 @@ function LiveAnalysisPage(): JSX.Element {
 
   const shareLink = savedSnapshot ? `${window.location.origin}/analysis/${savedSnapshot.id}` : null
   const compareDisabled = selectedCompareIds.length < 2 || selectedCompareIds.length > 4
+  const dealTitle = form.property.address?.trim() || 'New deal analysis'
+  const dealMeta = [
+    humanizePropertyType(form.property.property_type),
+    form.property.surface_m2 ? `${form.property.surface_m2} m²` : null,
+    form.property.dpe_class ? `DPE ${form.property.dpe_class}` : null
+  ].filter(Boolean).join(' · ')
+
+  const totalProjectCost = form.acquisition.purchase_price_eur + form.acquisition.fees_and_works_eur
+  const annualGrossIncome = (form.income.monthly_rent_eur + form.income.other_monthly_income_eur) * 12
+  const ltv = form.acquisition.purchase_price_eur > 0
+    ? form.financing.loan_amount_eur / form.acquisition.purchase_price_eur
+    : null
 
   return (
-    <main className="container">
-      <div className="page-header">
-        <h1>Deal Analysis</h1>
-        <Badge label="Live mode (editable)" tone="info" />
-      </div>
-      <p className="subtitle">Quickly underwrite a rental deal, then save or compare snapshots.</p>
-      <section className="panel intro-panel">
-        <h2>Start in under 20 seconds</h2>
-        <ul>
-          <li>Load the demo deal, then run analysis.</li>
-          <li>Review core metrics, risk flags, memo, and comps.</li>
-          <li>Save a snapshot to share or compare deals side by side.</li>
-        </ul>
+    <main className="container app-shell">
+      <section className="page-hero">
+        <div>
+          <div className="eyebrow">Deterministic underwriting workspace</div>
+          <div className="hero-heading-row">
+            <h1>{dealTitle}</h1>
+            <Badge label="Live analysis" tone="info" />
+          </div>
+          <p className="subtitle">
+            Investor-grade deal analysis for rental underwriting, memo generation, comps, and snapshot comparison.
+          </p>
+          <p className="hero-meta">{dealMeta || 'Add property context to anchor the investment story.'}</p>
+        </div>
+
+        <div className="hero-actions">
+          <button type="button" className="button-secondary" onClick={saveSnapshot} disabled={saving || loading || !result || dirty}>
+            {saving ? 'Saving…' : 'Save snapshot'}
+          </button>
+          <button type="button" className="button-secondary" onClick={generateMemo} disabled={memoLoading || !result || dirty}>
+            {memoLoading ? 'Generating memo…' : 'Generate memo'}
+          </button>
+          <button type="button" className="button-secondary" onClick={exportPdf} disabled={exporting || !result || dirty}>
+            {exporting ? 'Preparing PDF…' : 'Export PDF'}
+          </button>
+        </div>
       </section>
 
-      <div className="actions">
-        <button type="button" onClick={exportPdf} disabled={exporting || !result || dirty}>
-          {exporting ? 'Preparing PDF…' : 'Download PDF'}
-        </button>
-        <button type="button" onClick={generateMemo} disabled={memoLoading || !result || dirty}>
-          {memoLoading ? 'Generating memo…' : 'Create memo'}
-        </button>
-        <button type="button" onClick={saveSnapshot} disabled={saving || loading || !result || dirty}>
-          {saving ? 'Saving…' : 'Save snapshot'}
-        </button>
-      </div>
-
-      {dirty && <div className="error">Inputs changed. Re-run analysis to refresh outputs before memo/PDF/save.</div>}
-
       {shareLink && (
-        <section className="panel share-card">
+        <section className="panel callout callout-success">
           <div className="panel-header">
-          <h2>Snapshot saved</h2>
-            <Badge label="Shareable" tone="info" />
+            <div>
+              <h2>Snapshot saved</h2>
+              <p className="muted">This analysis is now frozen as a read-only point-in-time view.</p>
+            </div>
+            <Badge label="Shareable" tone="good" />
           </div>
-          <p>Your snapshot is now a read-only point-in-time link.</p>
+
           <a className="share-link" href={shareLink}>{shareLink}</a>
+
           <div className="share-actions">
             <button
               type="button"
+              className="button-secondary"
               onClick={() => {
                 if (!navigator.clipboard) return
                 void navigator.clipboard.writeText(shareLink)
@@ -336,81 +359,215 @@ function LiveAnalysisPage(): JSX.Element {
           </div>
         </section>
       )}
-      {saveError && <div className="error">{saveError}</div>}
 
-      <div className="layout">
-        <DealForm form={form} onChange={updateForm} onSubmit={submit} loading={loading} onLoadSample={() => updateForm(sampleDeal)} />
-        <ResultsView result={result} />
+      {saveError && <div className="callout callout-danger">{saveError}</div>}
+      {error && <div className="callout callout-danger">{error}</div>}
+      {dirty && <div className="callout callout-warn">Inputs changed. Re-run analysis before exporting, generating a memo, or saving a snapshot.</div>}
+      {!result && !dirty && !loading && (
+        <div className="callout callout-neutral">
+          Start with the left rail, run the underwriting, then review the decision workspace on the right.
+        </div>
+      )}
+
+      <div className="workspace-layout">
+        <aside className="workspace-aside">
+          <div className="sticky-stack">
+            <section className="panel context-panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Deal context</h2>
+                  <p className="muted">A quick read before underwriting.</p>
+                </div>
+                <Badge label="Live inputs" />
+              </div>
+
+              <div className="context-grid">
+                <MiniStat label="Total project cost" value={money(totalProjectCost)} />
+                <MiniStat label="Gross annual income" value={money(annualGrossIncome)} />
+                <MiniStat label="Loan-to-value" value={ltv === null ? '—' : ratio(ltv)} />
+                <MiniStat label="Hold period" value={`${form.exit.hold_years} years`} />
+              </div>
+            </section>
+
+            <DealForm
+              form={form}
+              onChange={updateForm}
+              onSubmit={submit}
+              loading={loading}
+              onLoadSample={() => updateForm(sampleDeal)}
+            />
+          </div>
+        </aside>
+
+        <section className="workspace-main">
+          <div className="tab-strip">
+            <button
+              type="button"
+              className={`tab-button ${activeTab === 'overview' ? 'tab-button-active' : ''}`}
+              onClick={() => setActiveTab('overview')}
+            >
+              Overview
+            </button>
+            <button
+              type="button"
+              className={`tab-button ${activeTab === 'memo' ? 'tab-button-active' : ''}`}
+              onClick={() => setActiveTab('memo')}
+            >
+              Memo
+            </button>
+            <button
+              type="button"
+              className={`tab-button ${activeTab === 'comps' ? 'tab-button-active' : ''}`}
+              onClick={() => setActiveTab('comps')}
+            >
+              Comps
+            </button>
+            <button
+              type="button"
+              className={`tab-button ${activeTab === 'library' ? 'tab-button-active' : ''}`}
+              onClick={() => setActiveTab('library')}
+            >
+              Library
+            </button>
+          </div>
+
+          {activeTab === 'overview' && <ResultsView result={result} />}
+
+          {activeTab === 'memo' && (
+            <MemoSection
+              memo={memo}
+              loading={memoLoading}
+              error={memoError}
+              emptyMessage="Generate a memo after running analysis. The memo explains the deterministic output but does not recalculate it."
+            />
+          )}
+
+          {activeTab === 'comps' && (
+            <CompsSection
+              comps={comps}
+              loading={compsLoading}
+              error={compsError}
+              hasCoordinates={form.property.lat !== null && form.property.lon !== null}
+              noCoordinatesMessage="Add latitude and longitude in Advanced data to enable Paris sales comps."
+              emptyMessage="Comps load automatically after analysis when coordinates are present."
+            />
+          )}
+
+          {activeTab === 'library' && (
+            <RecentSnapshotsPanel
+              recentSnapshots={recentSnapshots}
+              recentError={recentError}
+              selectedCompareIds={selectedCompareIds}
+              onToggleCompare={toggleCompare}
+              onClearSelection={() => setSelectedCompareIds([])}
+              compareDisabled={compareDisabled}
+            />
+          )}
+        </section>
+      </div>
+    </main>
+  )
+}
+
+function MiniStat({ label, value }: { label: string; value: string }): JSX.Element {
+  return (
+    <div className="mini-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
+function RecentSnapshotsPanel({
+  recentSnapshots,
+  recentError,
+  selectedCompareIds,
+  onToggleCompare,
+  onClearSelection,
+  compareDisabled
+}: {
+  recentSnapshots: SnapshotSummary[]
+  recentError: string | null
+  selectedCompareIds: string[]
+  onToggleCompare: (snapshotId: string) => void
+  onClearSelection: () => void
+  compareDisabled: boolean
+}): JSX.Element {
+  return (
+    <section className="panel">
+      <div className="panel-header">
+        <div>
+          <h2>Snapshot library</h2>
+          <p className="muted">Saved point-in-time analyses for sharing and comparison.</p>
+        </div>
+        <Badge label="2 to 4 for compare" />
       </div>
 
-      <MemoSection memo={memo} loading={memoLoading} error={memoError} />
-
-      <CompsSection
-        comps={comps}
-        loading={compsLoading}
-        error={compsError}
-        hasCoordinates={form.property.lat !== null && form.property.lon !== null}
-      />
-
-      {error && <div className="error">{error}</div>}
-
-      <section className="panel">
-        <div className="panel-header">
-          <h2>Recent analyses</h2>
-          <Badge label="Newest first" />
+      {recentError && (
+        <div className="callout callout-neutral inline-callout">
+          Snapshot library is unavailable locally right now. Core analysis still works.
         </div>
+      )}
 
-        <div className="compare-toolbar">
-          <span className="muted">Select 2 to 4 saved snapshots to compare ({selectedCompareIds.length}/4 selected).</span>
-          <div className="share-actions">
-            <a className={`button-link ${compareDisabled ? 'button-link-disabled' : ''}`} href={buildCompareUrl(selectedCompareIds)}>
-              Compare selected deals
-            </a>
-            <button type="button" onClick={() => setSelectedCompareIds([])} disabled={selectedCompareIds.length === 0}>Clear</button>
-          </div>
+      <div className="compare-toolbar">
+        <span className="muted">
+          {selectedCompareIds.length}/4 selected
+        </span>
+        <div className="share-actions">
+          <a className={`button-link ${compareDisabled ? 'button-link-disabled' : ''}`} href={buildCompareUrl(selectedCompareIds)}>
+            Compare selected
+          </a>
+          <button type="button" className="button-secondary" onClick={onClearSelection} disabled={selectedCompareIds.length === 0}>
+            Clear
+          </button>
         </div>
-        {selectedCompareIds.length < 2 && <p className="muted">Comparison starts once at least 2 snapshots are selected.</p>}
-        {selectedCompareIds.length > 4 && <p className="error-inline">Select at most 4 deals for comparison.</p>}
+      </div>
 
-        {recentSnapshots.length === 0 ? (
-          <p>No saved analyses yet.</p>
-        ) : (
-          <ul className="recent-list">
-            {recentSnapshots.map((item) => (
-              <li key={item.id} className="recent-item">
-                <div className="recent-main">
-                  <label className="compare-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={selectedCompareIds.includes(item.id)}
-                      onChange={() => toggleCompare(item.id)}
-                      disabled={!selectedCompareIds.includes(item.id) && selectedCompareIds.length >= 4}
-                    />
-                    Compare
-                  </label>
+      {selectedCompareIds.length < 2 && (
+        <p className="muted">Select at least 2 snapshots to unlock side-by-side comparison.</p>
+      )}
+      {selectedCompareIds.length > 4 && (
+        <p className="error-inline">Select at most 4 deals.</p>
+      )}
+
+      {recentSnapshots.length === 0 ? (
+        <div className="empty-state">
+          <h3>No saved analyses yet</h3>
+          <p>Run an analysis, then save a snapshot to start building a deal library.</p>
+        </div>
+      ) : (
+        <ul className="recent-list">
+          {recentSnapshots.map((item) => (
+            <li key={item.id} className="recent-item">
+              <div className="recent-main">
+                <label className="compare-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={selectedCompareIds.includes(item.id)}
+                    onChange={() => onToggleCompare(item.id)}
+                    disabled={!selectedCompareIds.includes(item.id) && selectedCompareIds.length >= 4}
+                  />
+                  Compare
+                </label>
+
+                <div className="recent-text">
                   <a href={`/analysis/${item.id}`}><strong>{item.title}</strong></a>
-                  <p className="muted">{item.address_label ?? 'No address'} · {new Date(item.created_at).toLocaleString()}</p>
+                  <p className="muted">
+                    {item.address_label ?? 'No address'} · {new Date(item.created_at).toLocaleString()}
+                  </p>
                 </div>
-                <div className="recent-badges">
-                  {item.investment_view ? <Badge label={item.investment_view} tone={investmentTone(item.investment_view)} /> : null}
-                  {item.has_memo ? <Badge label="memo" /> : null}
-                  {item.has_comps ? <Badge label="comps" /> : null}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              </div>
 
-      <section className="assumptions panel">
-        <h3>How to use</h3>
-        <ul>
-          {assumptions.map((item) => <li key={item}>{item}</li>)}
-          <li>Some features depend on config: memo needs <code>OPENAI_API_KEY</code>; comps/snapshots need <code>DATABASE_URL</code>.</li>
-          <li>Saved snapshots and compare view use point-in-time saved outputs only.</li>
+              <div className="recent-badges">
+                {item.investment_view ? <Badge label={item.investment_view} tone={investmentTone(item.investment_view)} /> : null}
+                {item.has_memo ? <Badge label="memo" /> : null}
+                {item.has_comps ? <Badge label="comps" /> : null}
+              </div>
+            </li>
+          ))}
         </ul>
-      </section>
-    </main>
+      )}
+    </section>
   )
 }
 
@@ -442,11 +599,11 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
   }
 
   if (error) {
-    return <main className="container"><div className="error">{error}</div></main>
+    return <main className="container"><div className="callout callout-danger">{error}</div></main>
   }
 
   if (!snapshot) {
-    return <main className="container"><div className="error">Snapshot not found.</div></main>
+    return <main className="container"><div className="callout callout-danger">Snapshot not found.</div></main>
   }
 
   const shareLink = `${window.location.origin}/analysis/${snapshot.id}`
@@ -460,7 +617,7 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
           <div>
             <div className="hero-title-row">
               <h1>{snapshot.title}</h1>
-              <Badge label="Saved snapshot (read-only)" tone="info" />
+              <Badge label="Saved snapshot" tone="info" />
               {snapshot.investment_view ? <Badge label={snapshot.investment_view} tone={investmentTone(snapshot.investment_view)} /> : null}
             </div>
             <p className="subtitle">{snapshot.address_label ?? 'No address label'}</p>
@@ -468,6 +625,7 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
           <div className="share-actions">
             <button
               type="button"
+              className="button-secondary"
               onClick={() => {
                 if (!navigator.clipboard) return
                 void navigator.clipboard.writeText(shareLink)
@@ -478,7 +636,6 @@ function SavedSnapshotPage({ snapshotId }: { snapshotId: string }): JSX.Element 
             </button>
           </div>
         </div>
-        <p className="muted">To compare deals, return to Recent analyses and select 2 to 4 snapshots.</p>
 
         <div className="snapshot-meta-grid">
           <MetaItem label="Saved at" value={new Date(snapshot.created_at).toLocaleString()} />
@@ -569,7 +726,7 @@ function ComparePage({ ids }: { ids: string[] }): JSX.Element {
   }, [ids])
 
   if (ids.length < 2) {
-    return <main className="container"><section className="panel"><h1>Compare deals</h1><p>Select 2 to 4 saved snapshots from Recent analyses.</p><p><a href="/">Back to analyses</a></p></section></main>
+    return <main className="container"><section className="panel"><h1>Compare deals</h1><p>Select 2 to 4 saved snapshots from the library.</p><p><a href="/">Back to analyses</a></p></section></main>
   }
 
   if (ids.length > 4) {
@@ -581,18 +738,20 @@ function ComparePage({ ids }: { ids: string[] }): JSX.Element {
   }
 
   if (error) {
-    return <main className="container"><div className="error">{error}</div></main>
+    return <main className="container"><div className="callout callout-danger">{error}</div></main>
   }
 
   return (
     <main className="container">
       <p><a href="/">← Back to analyses</a></p>
+
       <section className="panel">
         <div className="panel-header">
           <h1>Compare deals</h1>
           <Badge label={`Compare mode · ${snapshots.length} selected`} tone="info" />
         </div>
-        <p className="muted">Comparison uses saved snapshot data only (no recalculation).</p>
+        <p className="muted">Comparison uses saved snapshot data only. No recalculation is performed here.</p>
+
         <div className="compare-chip-row">
           {snapshots.map((s) => {
             const remaining = snapshots.filter((x) => x.id !== s.id).map((x) => x.id)
@@ -655,7 +814,6 @@ function ComparePage({ ids }: { ids: string[] }): JSX.Element {
             </tbody>
           </table>
         </div>
-        <p className="muted">Highlighting is metric-level only (green = relatively stronger direction for that metric, amber = relatively weaker).</p>
       </section>
 
       <section className="panel compare-grid-header">
