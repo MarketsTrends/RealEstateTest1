@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Deal Analysis Report</title>
+</head>
+<body>
+  <header>
+    <h1>Deal Analysis Report</h1>
+    <p class="subtitle">Pre-tax real-estate deal analysis</p>
+  </header>
+
+  <section>
+    <h2>Property summary</h2>
+    <div class="grid two">
+      <div><strong>Address:</strong> {{ request.property.address or '—' }}</div>
+      <div><strong>Property type:</strong> {{ request.property.property_type }}</div>
+      <div><strong>Surface:</strong> {{ request.property.surface_m2 if request.property.surface_m2 is not none else '—' }}</div>
+      <div><strong>DPE:</strong> {{ request.property.dpe_class or '—' }}</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Investment summary</h2>
+    <table>
+      <tbody>
+        <tr><td>Purchase price</td><td>{{ fmt_money(request.acquisition.purchase_price_eur) }}</td></tr>
+        <tr><td>Fees & works</td><td>{{ fmt_money(request.acquisition.fees_and_works_eur) }}</td></tr>
+        <tr><td>Monthly rent</td><td>{{ fmt_money(request.income.monthly_rent_eur) }}</td></tr>
+        <tr><td>Other monthly income</td><td>{{ fmt_money(request.income.other_monthly_income_eur) }}</td></tr>
+        <tr><td>Vacancy</td><td>{{ fmt_pct(request.income.vacancy_rate) }}</td></tr>
+        <tr><td>Annual operating expenses</td><td>{{ fmt_money(request.expenses.annual_operating_expenses_eur) }}</td></tr>
+        <tr><td>Down payment</td><td>{{ fmt_money(request.financing.down_payment_eur) }}</td></tr>
+        <tr><td>Loan amount</td><td>{{ fmt_money(request.financing.loan_amount_eur) }}</td></tr>
+        <tr><td>Interest rate</td><td>{{ fmt_pct(request.financing.interest_rate_annual) }}</td></tr>
+        <tr><td>Term</td><td>{{ request.financing.term_years }} years</td></tr>
+        <tr><td>Hold period</td><td>{{ request.exit.hold_years }} years</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>KPI summary</h2>
+    <div class="grid three kpis">
+      <div class="kpi"><span>NOI</span><strong>{{ fmt_money(result.metrics.noi_annual_eur) }}</strong></div>
+      <div class="kpi"><span>Annual cash flow</span><strong>{{ fmt_money(result.metrics.cashflow_annual_eur) }}</strong></div>
+      <div class="kpi"><span>Monthly cash flow</span><strong>{{ fmt_money(result.metrics.cashflow_monthly_eur) }}</strong></div>
+      <div class="kpi"><span>Cap rate</span><strong>{{ fmt_pct(result.metrics.cap_rate_on_purchase_price) }}</strong></div>
+      <div class="kpi"><span>Cash-on-cash</span><strong>{{ fmt_pct(result.metrics.cash_on_cash_return) }}</strong></div>
+      <div class="kpi"><span>DSCR</span><strong>{{ fmt_number(result.metrics.dscr) }}</strong></div>
+      <div class="kpi"><span>Break-even occupancy</span><strong>{{ fmt_pct(result.metrics.break_even_occupancy) }}</strong></div>
+      <div class="kpi"><span>IRR</span><strong>{{ fmt_pct(result.metrics.irr_annual) }}</strong></div>
+      <div class="kpi"><span>NPV</span><strong>{{ fmt_money(result.metrics.npv_eur) }}</strong></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Risk flags</h2>
+    {% if result.risk_flags %}
+    <ul>
+      {% for flag in result.risk_flags %}
+      <li><strong>{{ flag.severity|upper }}</strong> — {{ flag.message }}</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p>No risk flags.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h2>Scenario comparison</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>NOI</th>
+          <th>Annual cash flow</th>
+          <th>Cap rate</th>
+          <th>IRR</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for name in ['base', 'optimistic', 'prudent'] %}
+        <tr>
+          <td>{{ name }}</td>
+          <td>{{ fmt_money(result.scenarios[name].metrics.noi_annual_eur) }}</td>
+          <td>{{ fmt_money(result.scenarios[name].metrics.cashflow_annual_eur) }}</td>
+          <td>{{ fmt_pct(result.scenarios[name].metrics.cap_rate_on_purchase_price) }}</td>
+          <td>{{ fmt_pct(result.scenarios[name].metrics.irr_annual) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Pro forma</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Year</th>
+          <th>NOI</th>
+          <th>Debt service</th>
+          <th>Cash flow</th>
+          <th>Loan balance end</th>
+          <th>Equity end</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in result.pro_forma_yearly %}
+        <tr>
+          <td>{{ row.year }}</td>
+          <td>{{ fmt_money(row.noi_annual_eur) }}</td>
+          <td>{{ fmt_money(row.debt_service_annual_eur) }}</td>
+          <td>{{ fmt_money(row.cashflow_annual_eur) }}</td>
+          <td>{{ fmt_money(row.loan_balance_end_eur) }}</td>
+          <td>{{ fmt_money(row.equity_end_eur) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p>Pre-tax analysis.</p>
+    <p>Operating assumptions are flat within each scenario unless explicitly adjusted.</p>
+  </footer>
+</body>
+</html>
